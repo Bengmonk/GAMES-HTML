@@ -1,0 +1,1299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ROOFRUNNER — Rooftop Parkour</title>
+<style>
+  :root{
+    --ink: #0e1420;
+    --paper: #eef1f6;
+    --accent: #ff5a36;
+    --accent-dim: #c94526;
+    --sky-1: #dfe6f2;
+    --sky-2: #b9c6dc;
+    --mist: rgba(238,241,246,0.6);
+  }
+  *{ box-sizing: border-box; margin:0; padding:0; }
+  html,body{
+    width:100%; height:100%;
+    background: var(--ink);
+    overflow:hidden;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: var(--paper);
+  }
+  #stage{
+    position:relative;
+    width:100vw; height:100vh;
+    display:flex; align-items:center; justify-content:center;
+    background: var(--ink);
+  }
+  canvas{
+    display:block;
+    background: linear-gradient(180deg, var(--sky-1) 0%, var(--sky-2) 100%);
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 40px 120px rgba(0,0,0,0.55);
+    image-rendering: -webkit-optimize-contrast;
+  }
+
+  /* ---------- HUD ---------- */
+  #hud{
+    position:absolute; top:0; left:0; right:0;
+    padding: 22px 30px;
+    display:flex; justify-content:space-between; align-items:flex-start;
+    pointer-events:none;
+    font-variant-numeric: tabular-nums;
+  }
+  .hud-block{
+    display:flex; flex-direction:column; gap:2px;
+  }
+  .hud-label{
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: rgba(14,20,32,0.55);
+    font-weight:600;
+  }
+  .hud-value{
+    font-size: 28px;
+    font-weight:700;
+    color: var(--ink);
+    line-height:1.1;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.3);
+  }
+  .hud-value.accent{ color: var(--accent-dim); }
+  #hud-right{ text-align:right; align-items:flex-end; }
+  .speed-bar-track{
+    width:140px; height:6px; border-radius:3px;
+    background: rgba(14,20,32,0.18);
+    margin-top:6px; overflow:hidden;
+  }
+  .speed-bar-fill{
+    height:100%; width:0%;
+    background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+    border-radius:3px;
+    transition: width 0.08s linear;
+  }
+
+  /* ---------- Overlays ---------- */
+  .overlay{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    background: radial-gradient(circle at 50% 40%, rgba(20,26,40,0.72), rgba(8,10,16,0.92));
+    backdrop-filter: blur(2px);
+    z-index:10;
+  }
+  .overlay.hidden{ display:none; }
+
+  .panel{
+    width:min(560px, 88%);
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: 4px;
+    padding: 40px 44px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+    position:relative;
+    overflow:hidden;
+  }
+  .panel::before{
+    content:"";
+    position:absolute; top:0; left:0; right:0; height:6px;
+    background: repeating-linear-gradient(90deg, var(--accent) 0 24px, transparent 24px 48px);
+  }
+
+  .kicker{
+    font-size:12px; letter-spacing:3px; text-transform:uppercase;
+    color: var(--accent-dim); font-weight:700; margin-bottom:10px;
+  }
+  h1.title{
+    font-size: 42px;
+    font-weight:800;
+    letter-spacing:-0.5px;
+    line-height:1;
+    margin-bottom: 6px;
+  }
+  .sub{
+    font-size:14px; color:rgba(14,20,32,0.6); margin-bottom:28px;
+    line-height:1.5;
+  }
+
+  .controls-grid{
+    display:grid; grid-template-columns: 1fr 1fr; gap:10px 24px;
+    margin-bottom: 30px;
+  }
+  .ctrl-row{
+    display:flex; align-items:center; gap:12px;
+    font-size:13px;
+  }
+  .keys{ display:flex; gap:4px; flex-shrink:0; }
+  kbd{
+    display:inline-flex; align-items:center; justify-content:center;
+    min-width:26px; height:26px; padding:0 6px;
+    background: white;
+    border: 1px solid rgba(14,20,32,0.2);
+    border-bottom-width:3px;
+    border-radius: 5px;
+    font-size:11px; font-weight:700;
+    color: var(--ink);
+    font-family: inherit;
+  }
+  .ctrl-desc{ color: rgba(14,20,32,0.75); }
+  .ctrl-desc b{ color: var(--ink); }
+
+  .cta-btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    gap:10px;
+    background: var(--ink);
+    color: var(--paper);
+    border:none;
+    padding: 14px 26px;
+    font-size:15px; font-weight:700;
+    letter-spacing:0.3px;
+    border-radius:3px;
+    cursor:pointer;
+    transition: transform 0.12s ease, background 0.12s ease;
+    width:100%;
+  }
+  .cta-btn:hover{ background:#1a2233; transform: translateY(-1px); }
+  .cta-btn:active{ transform: translateY(0px); }
+  .cta-btn .accent-chip{
+    background: var(--accent);
+    color:white;
+    font-size:10px;
+    padding:2px 6px;
+    border-radius:2px;
+    letter-spacing:1px;
+  }
+
+  .stat-row{
+    display:flex; gap:28px; margin-top:22px;
+    padding-top:20px;
+    border-top: 1px solid rgba(14,20,32,0.12);
+  }
+  .stat{ display:flex; flex-direction:column; gap:2px; }
+  .stat .num{ font-size:24px; font-weight:800; color:var(--accent-dim); }
+  .stat .lab{ font-size:10.5px; letter-spacing:1px; text-transform:uppercase; color:rgba(14,20,32,0.5); }
+
+  #gameover .title{ color: var(--accent-dim); }
+
+  .hint{
+    margin-top:16px; font-size:12px; color:rgba(14,20,32,0.55); text-align:center;
+  }
+  .hint kbd{ min-width:22px; height:22px; }
+
+  #flash{
+    position:absolute; inset:0; background:white; opacity:0;
+    pointer-events:none; z-index:5;
+  }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="game" width="1280" height="720"></canvas>
+  <div id="flash"></div>
+
+  <div id="hud" style="display:none;">
+    <div class="hud-block">
+      <span class="hud-label">Distance</span>
+      <span class="hud-value" id="hud-distance">0m</span>
+    </div>
+    <div id="hud-right" class="hud-block">
+      <span class="hud-label">Speed</span>
+      <span class="hud-value accent" id="hud-speed">0.0</span>
+      <div class="speed-bar-track"><div class="speed-bar-fill" id="hud-speedbar"></div></div>
+    </div>
+  </div>
+  <div id="hud-high" style="position:absolute; top:22px; left:50%; transform:translateX(-50%); text-align:center; display:none;">
+    <span class="hud-label">Best</span><br>
+    <span class="hud-value" id="hud-high-val" style="font-size:20px;">0m</span>
+  </div>
+
+  <!-- START SCREEN -->
+  <div class="overlay" id="start-screen">
+    <div class="panel">
+      <div class="kicker">Rooftop Circuit — Endless</div>
+      <h1 class="title">ROOFRUNNER</h1>
+      <p class="sub">Chain jumps, wall-bounces and slides across a procedurally generated skyline. Momentum is everything — keep moving and the city keeps opening up.</p>
+
+      <div class="controls-grid">
+        <div class="ctrl-row">
+          <div class="keys"><kbd>A</kbd><kbd>D</kbd></div>
+          <div class="ctrl-desc"><b>Run</b> left / right</div>
+        </div>
+        <div class="ctrl-row">
+          <div class="keys"><kbd>W</kbd><kbd>SPACE</kbd></div>
+          <div class="ctrl-desc"><b>Jump</b> / wall-jump</div>
+        </div>
+        <div class="ctrl-row">
+          <div class="keys"><kbd>S</kbd></div>
+          <div class="ctrl-desc"><b>Slide</b> under overhangs</div>
+        </div>
+        <div class="ctrl-row">
+          <div class="keys"><kbd>R</kbd></div>
+          <div class="ctrl-desc"><b>Restart</b> instantly</div>
+        </div>
+      </div>
+
+      <button class="cta-btn" id="btn-start">Start Run <span class="accent-chip">SPACE</span></button>
+
+      <div class="stat-row">
+        <div class="stat"><span class="num" id="start-high">0m</span><span class="lab">Personal Best</span></div>
+        <div class="stat"><span class="num">∞</span><span class="lab">Procedural Skyline</span></div>
+        <div class="stat"><span class="num">Auto</span><span class="lab">Ledge Vaulting</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME OVER SCREEN -->
+  <div class="overlay hidden" id="gameover">
+    <div class="panel">
+      <div class="kicker" id="go-kicker">Run Ended</div>
+      <h1 class="title">FELL SHORT</h1>
+      <p class="sub" id="go-sub">You lost your footing over the gap. The city doesn't wait.</p>
+
+      <div class="stat-row" style="margin-top:0; padding-top:0; border-top:none; margin-bottom:26px;">
+        <div class="stat"><span class="num" id="go-distance">0m</span><span class="lab">This Run</span></div>
+        <div class="stat"><span class="num" id="go-high">0m</span><span class="lab">Personal Best</span></div>
+        <div class="stat"><span class="num" id="go-speed">0.0</span><span class="lab">Top Speed</span></div>
+      </div>
+
+      <button class="cta-btn" id="btn-restart">Run Again <span class="accent-chip">R</span></button>
+      <div class="hint">Press <kbd>R</kbd> anytime to restart instantly</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* =========================================================
+   ROOFRUNNER — single-file canvas parkour game
+   ========================================================= */
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const GROUND_Y = H - 120; // baseline reference (not used directly, buildings vary)
+
+/* ---------- Physics constants ---------- */
+const GRAVITY = 0.62;
+const MAX_FALL = 18;
+const JUMP_VELOCITY = -13.2;
+const WALL_JUMP_VX = 8.5;
+const WALL_JUMP_VY = -12.4;
+const WALL_SLIDE_MAX_VY = 3.2;
+const BASE_RUN_SPEED = 5.4;
+const MAX_RUN_SPEED = 11.5;
+const SPEED_RAMP_RATE = 0.16;      // px/frame^2 gained per frame while running clean
+const SPEED_DECAY_ON_HIT = 0.55;   // multiplier applied to speed when hitting an obstacle
+const SLIDE_HEIGHT_MULT = 0.5;
+const ACCEL_GROUND = 0.85;
+const FRICTION_GROUND = 0.86;
+const AIR_CONTROL = 0.45;
+const COYOTE_FRAMES = 7;
+const JUMP_BUFFER_FRAMES = 8;
+const VAULT_REACH = 34; // px above player's feet a ledge must be within to auto-vault
+
+const PLAYER_W = 30;
+const PLAYER_H = 54;
+const PLAYER_SLIDE_H = 30;
+
+/* ---------- Utility ---------- */
+function rand(min, max){ return Math.random()*(max-min)+min; }
+function randInt(min, max){ return Math.floor(rand(min, max+1)); }
+function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+function lerp(a,b,t){ return a+(b-a)*t; }
+function aabb(ax,ay,aw,ah, bx,by,bw,bh){
+  return ax < bx+bw && ax+aw > bx && ay < by+bh && ay+ah > by;
+}
+
+/* ---------- Persistent storage ---------- */
+const STORAGE_KEY = 'roofrunner_highscore_v1';
+function loadHighScore(){
+  try{ return parseFloat(localStorage.getItem(STORAGE_KEY)) || 0; }catch(e){ return 0; }
+}
+function saveHighScore(v){
+  try{ localStorage.setItem(STORAGE_KEY, String(v)); }catch(e){}
+}
+let highScore = loadHighScore();
+
+/* =========================================================
+   WORLD GENERATION
+   Rooftops are a sequence of "buildings" (solid platforms) with
+   gaps between them. Some buildings carry extra features:
+   - wall: a tall vertical face on the leading edge (for wall-jump chains)
+   - overhang: a low ceiling requiring a slide to pass under
+   - crumble: a platform that breaks a moment after being stepped on
+   - ledge: a lower step player can auto-vault onto from below
+   ========================================================= */
+
+const ROOF_MIN_H = 90;
+const ROOF_MAX_H = 320;
+const ROOF_MIN_W = 160;
+const ROOF_MAX_W = 420;
+const GAP_MIN = 70;
+const GAP_MAX = 210;
+
+class Building{
+  constructor(x, w, topY, opts){
+    this.x = x;
+    this.w = w;
+    this.topY = topY;       // y coordinate of walkable surface
+    this.bottomY = H + 40;  // extends off screen bottom
+    this.opts = opts || {};
+    // crumble state
+    this.crumbling = false;
+    this.crumbleTimer = 0;
+    this.fallen = false;
+    this.fallOffset = 0;
+    // visual jitter for windows etc, seeded once
+    this.seed = Math.random();
+  }
+  get right(){ return this.x + this.w; }
+  reset(){
+    this.crumbling = false;
+    this.crumbleTimer = 0;
+    this.fallen = false;
+    this.fallOffset = 0;
+  }
+}
+
+class World{
+  constructor(){
+    this.buildings = [];
+    this.distanceScrolled = 0; // world-space camera offset
+    this.nextSpawnX = 0;
+    this.difficulty = 0; // ramps with distance, widens gaps / adds features
+    this.init();
+  }
+
+  init(){
+    this.buildings = [];
+    this.distanceScrolled = 0;
+    this.difficulty = 0;
+    // safe starting platform
+    let startW = 500;
+    let startTop = H - 220;
+    this.buildings.push(new Building(-50, startW, startTop, {}));
+    this.nextSpawnX = startW - 50;
+    // pre-fill ahead
+    while(this.nextSpawnX < W + 600){
+      this.spawnNext();
+    }
+  }
+
+  spawnNext(){
+    const prev = this.buildings[this.buildings.length-1];
+    const prevTop = prev.topY;
+
+    // difficulty scales slowly with distance traveled (in world px)
+    this.difficulty = clamp(this.distanceScrolled / 9000, 0, 1);
+
+    let gap = rand(GAP_MIN, GAP_MIN + (GAP_MAX-GAP_MIN)*this.difficulty);
+    // occasional easy gap to allow recovery
+    if(Math.random() < 0.15) gap *= 0.5;
+
+    let w = rand(ROOF_MIN_W, ROOF_MAX_W - (ROOF_MAX_W-ROOF_MIN_W)*0.3*this.difficulty);
+    let heightDelta = rand(-140, 120) * (0.4 + 0.6*this.difficulty);
+    let top = clamp(prevTop + heightDelta, H-420, H-140);
+
+    const x = prev.right + gap;
+    const opts = {};
+
+    // feature roll — weighted by difficulty, never on the very first few buildings
+    const r = Math.random();
+    const featureChance = 0.28 + 0.22*this.difficulty;
+    if(this.buildings.length > 3 && r < featureChance){
+      const featureRoll = Math.random();
+      if(featureRoll < 0.30){
+        // tall wall on leading edge -> encourages wall jump to reach next
+        opts.wall = { height: rand(90, 170) };
+      } else if(featureRoll < 0.60){
+        // overhang requiring slide near the start of this building
+        opts.overhang = { offset: rand(30,80), width: rand(90,150), clearance: PLAYER_SLIDE_H + rand(6,16) };
+      } else if(featureRoll < 0.85){
+        // crumbling platform
+        opts.crumble = true;
+      } else {
+        // low ledge step-up (auto vault) placed just before this building at gap
+        opts.ledgeStep = rand(18, VAULT_REACH-4);
+      }
+    }
+
+    const b = new Building(x, w, top, opts);
+    this.buildings.push(b);
+    this.nextSpawnX = b.right;
+  }
+
+  update(scrollDx){
+    this.distanceScrolled += scrollDx;
+    for(const b of this.buildings){
+      b.x -= scrollDx;
+      if(b.crumbling){
+        b.crumbleTimer += 1;
+        if(b.crumbleTimer > 26 && !b.fallen){
+          b.fallen = true;
+        }
+        if(b.fallen){
+          b.fallOffset += 2.2 * (b.fallOffset*0.04 + 1);
+        }
+      }
+    }
+    // drop offscreen-left buildings
+    while(this.buildings.length && this.buildings[0].right < -100){
+      this.buildings.shift();
+    }
+    // spawn ahead as needed
+    this.nextSpawnX -= scrollDx;
+    while(this.nextSpawnX < W + 500){
+      this.spawnNext();
+    }
+  }
+}
+
+/* =========================================================
+   PLAYER
+   ========================================================= */
+
+const PLAYER_SCREEN_X = 280; // fixed screen-space x; world scrolls under player
+
+class Player{
+  constructor(){
+    this.x = PLAYER_SCREEN_X;
+    this.y = 0;
+    this.vx = 0;
+    this.vy = 0;
+    this.w = PLAYER_W;
+    this.h = PLAYER_H;
+    this.onGround = false;
+    this.groundBuilding = null;
+    this.facing = 1;
+    this.sliding = false;
+    this.wallContact = 0; // -1 left wall, 1 right wall, 0 none
+    this.coyoteTimer = 0;
+    this.jumpBuffer = 0;
+    this.runSpeed = BASE_RUN_SPEED;
+    this.cleanRunTimer = 0; // frames since last obstacle hit, drives momentum ramp
+    this.alive = true;
+    this.deathReason = '';
+    this.animT = 0;
+    this.stepPhase = 0;
+    this.squash = 1;
+    this.trail = [];
+    this.topSpeedThisRun = BASE_RUN_SPEED;
+    this.lastWallJumpFrame = -999;
+    this.frame = 0;
+    this.vaultCooldown = 0;
+    this.landingSquashTimer = 0;
+  }
+
+  get feetY(){ return this.y + this.h; }
+  get currentH(){ return this.sliding ? PLAYER_SLIDE_H : PLAYER_H; }
+
+  reset(){
+    this.x = PLAYER_SCREEN_X;
+    this.y = H - 220 - PLAYER_H;
+    this.vx = 0;
+    this.vy = 0;
+    this.h = PLAYER_H;
+    this.onGround = true;
+    this.sliding = false;
+    this.wallContact = 0;
+    this.coyoteTimer = 0;
+    this.jumpBuffer = 0;
+    this.runSpeed = BASE_RUN_SPEED;
+    this.cleanRunTimer = 0;
+    this.alive = true;
+    this.trail = [];
+    this.topSpeedThisRun = BASE_RUN_SPEED;
+    this.frame = 0;
+  }
+}
+
+const player = new Player();
+
+/* =========================================================
+   INPUT
+   ========================================================= */
+const keys = {};
+const keyMap = {
+  'KeyA':'left','ArrowLeft':'left',
+  'KeyD':'right','ArrowRight':'right',
+  'KeyW':'jump','ArrowUp':'jump','Space':'jump',
+  'KeyS':'down','ArrowDown':'down',
+  'KeyR':'restart'
+};
+let jumpPressedThisFrame = false;
+
+window.addEventListener('keydown', (e)=>{
+  const action = keyMap[e.code];
+  if(!action) return;
+  if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+  if(action === 'jump' && !keys.jump) jumpPressedThisFrame = true;
+  keys[action] = true;
+  if(action === 'restart'){
+    if(gameState === 'gameover' || gameState === 'start') startGame();
+  }
+  if(action === 'jump' && gameState === 'start'){
+    startGame();
+  }
+});
+window.addEventListener('keyup', (e)=>{
+  const action = keyMap[e.code];
+  if(!action) return;
+  keys[action] = false;
+});
+
+/* =========================================================
+   GAME STATE
+   ========================================================= */
+let gameState = 'start'; // 'start' | 'playing' | 'gameover'
+let world = new World();
+let cameraShake = 0;
+let flashAlpha = 0;
+let distanceTraveled = 0; // meters-ish, derived from world scroll
+let particles = [];
+let scrollSpeed = 0;
+
+const DIST_SCALE = 0.045; // world px -> "meters" displayed
+
+function getBuildingAt(worldX){
+  // player.x is screen-space; we track buildings in the same coordinate frame
+  // since world scrolls under the player. Just search buildings array.
+  for(const b of world.buildings){
+    if(worldX >= b.x && worldX <= b.right) return b;
+  }
+  return null;
+}
+
+function surfaceYAt(building, playerCenterX){
+  if(!building) return null;
+  let top = building.topY;
+  if(building.fallen){
+    top += building.fallOffset;
+  }
+  return top;
+}
+
+/* ---------- Collision / movement resolution ---------- */
+function updatePlayer(){
+  const p = player;
+  p.frame++;
+
+  // --- Horizontal input ---
+  let moveDir = 0;
+  if(keys.left) moveDir -= 1;
+  if(keys.right) moveDir += 1;
+  if(moveDir !== 0) p.facing = moveDir;
+
+  // sliding toggle (only on ground, only moving or holding down)
+  const wantSlide = keys.down && p.onGround;
+  if(wantSlide && !p.sliding){
+    p.sliding = true;
+    p.y += (PLAYER_H - PLAYER_SLIDE_H); // keep feet planted
+    p.h = PLAYER_SLIDE_H;
+  } else if(!wantSlide && p.sliding){
+    // only stand up if there's clearance
+    p.sliding = false;
+    p.y -= (PLAYER_H - PLAYER_SLIDE_H);
+    p.h = PLAYER_H;
+  }
+
+  // --- Momentum ramp: speed increases the longer you run clean ---
+  if(p.onGround && moveDir !== 0 && !p.sliding){
+    p.cleanRunTimer++;
+    p.runSpeed = Math.min(MAX_RUN_SPEED, BASE_RUN_SPEED + p.cleanRunTimer*SPEED_RAMP_RATE*0.06);
+  } else if(!p.onGround){
+    // maintain momentum in air
+  } else if(p.sliding){
+    // slight speed boost while sliding, but caps growth
+    p.cleanRunTimer += 0.4;
+  }
+  p.topSpeedThisRun = Math.max(p.topSpeedThisRun, p.runSpeed);
+
+  // --- Horizontal velocity ---
+  const targetVX = moveDir * p.runSpeed * (p.sliding ? 1.15 : 1);
+  if(p.onGround){
+    p.vx = lerp(p.vx, targetVX, ACCEL_GROUND);
+    if(moveDir === 0) p.vx *= FRICTION_GROUND;
+  } else {
+    p.vx = lerp(p.vx, targetVX, AIR_CONTROL);
+  }
+
+  // --- Wall detection (only when airborne) ---
+  p.wallContact = 0;
+  if(!p.onGround){
+    const bAhead = getBuildingAt(p.x + p.w/2 + (p.facing>0? 4: -4));
+    if(bAhead){
+      const sTop = surfaceYAt(bAhead, p.x);
+      // "wall" feature: tall face on leading edge means solid vertical collider
+      // We approximate: if moving into a building's edge while above its base but below its top+wallHeight
+      if(bAhead.opts.wall){
+        const wallTopY = sTop - bAhead.opts.wall.height;
+        const nearLeftEdge = p.facing>0 && Math.abs((p.x+p.w) - bAhead.x) < 10;
+        const nearRightEdge = p.facing<0 && Math.abs(p.x - bAhead.right) < 10;
+        if((nearLeftEdge||nearRightEdge) && p.y+p.h > wallTopY && p.y < sTop){
+          p.wallContact = p.facing;
+        }
+      }
+    }
+  }
+
+  // --- Jump buffering & coyote time ---
+  if(p.onGround) p.coyoteTimer = COYOTE_FRAMES; else p.coyoteTimer = Math.max(0, p.coyoteTimer-1);
+  if(jumpPressedThisFrame) p.jumpBuffer = JUMP_BUFFER_FRAMES; else p.jumpBuffer = Math.max(0, p.jumpBuffer-1);
+
+  if(p.jumpBuffer > 0){
+    if(p.wallContact !== 0){
+      // wall jump: kick off away from wall
+      p.vy = WALL_JUMP_VY;
+      p.vx = -p.wallContact * WALL_JUMP_VX;
+      p.facing = -p.wallContact;
+      p.jumpBuffer = 0;
+      p.coyoteTimer = 0;
+      spawnBurst(p.x+p.w/2, p.feetY, -p.wallContact);
+      p.lastWallJumpFrame = p.frame;
+    } else if(p.coyoteTimer > 0){
+      p.vy = JUMP_VELOCITY;
+      if(p.sliding){
+        // stand up out of slide on jump
+        p.sliding = false;
+        p.y -= (PLAYER_H - PLAYER_SLIDE_H);
+        p.h = PLAYER_H;
+      }
+      p.jumpBuffer = 0;
+      p.coyoteTimer = 0;
+      p.onGround = false;
+      spawnBurst(p.x+p.w/2, p.feetY, 0);
+    }
+  }
+
+  // wall slide (slow descent while holding into a wall, no ground)
+  if(p.wallContact !== 0 && p.vy > 0){
+    p.vy = Math.min(p.vy, WALL_SLIDE_MAX_VY);
+  }
+
+  // --- Gravity ---
+  p.vy += GRAVITY;
+  p.vy = Math.min(p.vy, MAX_FALL);
+
+  // --- Apply velocity ---
+  p.x += p.vx * 0; // player x is fixed on screen; horizontal "movement" is expressed as world scroll
+  p.y += p.vy;
+
+  // The world scrolls based on player's forward intent + runSpeed,
+  // but player can also move backward slightly within a soft window.
+  // We compute scroll amount this frame:
+  let scrollDx = 0;
+  if(p.onGround || p.wallContact===0){
+    scrollDx = p.vx; // when grounded/airborne-no-wall, vx drives world scroll
+  } else {
+    scrollDx = p.vx;
+  }
+  // clamp so player can't run backward off screen edge indefinitely
+  scrollSpeed = scrollDx;
+
+  world.update(scrollDx);
+  distanceTraveled = Math.max(distanceTraveled, world.distanceScrolled * DIST_SCALE);
+
+  // --- Collision resolution against buildings ---
+  resolveCollisions();
+
+  // camera / trail
+  p.trail.push({x:p.x+p.w/2, y:p.y+p.h/2, sliding:p.sliding});
+  if(p.trail.length>10) p.trail.shift();
+
+  jumpPressedThisFrame = false;
+
+  // death: fell below screen
+  if(p.y > H + 100){
+    killPlayer('You fell into the gap between rooftops.');
+  }
+}
+
+function resolveCollisions(){
+  const p = player;
+  const wasOnGround = p.onGround;
+  p.onGround = false;
+  p.groundBuilding = null;
+
+  const feetX1 = p.x + 4;
+  const feetX2 = p.x + p.w - 4;
+  const feetY = p.y + p.h;
+
+  let landed = false;
+  let bestSurfaceY = Infinity;
+  let bestBuilding = null;
+
+  for(const b of world.buildings){
+    if(b.right < p.x - 20 || b.x > p.x + p.w + 20) continue;
+    const sTop = surfaceYAt(b, p.x);
+    // overhang check (must duck under) — treat as ceiling collider
+    if(b.opts.overhang){
+      const ohX1 = b.x + b.opts.overhang.offset;
+      const ohX2 = ohX1 + b.opts.overhang.width;
+      const ceilingY = sTop - b.opts.overhang.clearance;
+      const overlapX = (p.x+p.w) > ohX1 && p.x < ohX2;
+      if(overlapX){
+        // if player's head is above ceilingY and body intersects the overhang band, block/kill
+        if(p.y < ceilingY && p.y+p.h > ceilingY - 40 && p.y+p.h <= sTop+2){
+          if(!p.sliding && p.h > (ceilingY - (sTop-PLAYER_H)) ){
+            // colliding with overhang from below/inside while standing tall
+            killPlayer('Smashed into a low overhang — should have slid under it.');
+            return;
+          }
+        }
+      }
+    }
+
+    // horizontal overlap with this building's footprint
+    const overlapsX = feetX2 > b.x && feetX1 < b.right;
+    if(!overlapsX) continue;
+
+    // landing: falling or level, feet crossing into surface band
+    if(p.vy >= 0 && feetY >= sTop && feetY <= sTop + Math.max(18, p.vy+8)){
+      if(sTop < bestSurfaceY){
+        bestSurfaceY = sTop;
+        bestBuilding = b;
+      }
+    }
+
+    // auto-vault: mid-air collision with a low ledge -> snap up onto it
+    if(!landed && p.vy !== 0){
+      const ledgeTop = sTop;
+      const withinReach = (p.feetY - ledgeTop) < VAULT_REACH && (p.feetY - ledgeTop) > -6;
+      const headClear = p.y < ledgeTop;
+      if(withinReach && headClear && overlapsX && p.vy >= -2){
+        // snap onto surface
+        p.y = ledgeTop - p.h;
+        p.vy = 0;
+        landed = true;
+        bestBuilding = b;
+        bestSurfaceY = ledgeTop;
+        spawnBurst(p.x+p.w/2, ledgeTop, 0);
+      }
+    }
+  }
+
+  if(bestBuilding && (player.vy >= 0) && Math.abs((p.y+p.h) - bestSurfaceY) < Math.max(20, p.vy+10)){
+    p.y = bestSurfaceY - p.h;
+    p.vy = 0;
+    p.onGround = true;
+    p.groundBuilding = bestBuilding;
+    if(!wasOnGround){
+      p.landingSquashTimer = 8;
+      spawnBurst(p.x+p.w/2, bestSurfaceY, 0);
+    }
+    // trigger crumble
+    if(bestBuilding.opts.crumble && !bestBuilding.crumbling){
+      bestBuilding.crumbling = true;
+    }
+  }
+
+  // if standing on a fully-fallen crumble building with no other support, die
+  if(p.onGround && p.groundBuilding && p.groundBuilding.fallen && p.groundBuilding.fallOffset > 60){
+    killPlayer('The platform crumbled away beneath you.');
+    return;
+  }
+
+  // side wall push-back when NOT jumping into a designated "wall" feature (soft blocking on tall cliff faces)
+  if(!p.onGround){
+    for(const b of world.buildings){
+      if(!b.opts.wall) continue;
+      const sTop = surfaceYAt(b,p.x);
+      const wallTopY = sTop - b.opts.wall.height;
+      const bandActive = p.y+p.h > wallTopY && p.y < sTop;
+      if(!bandActive) continue;
+      // block from left side
+      if(p.vx > 0 && p.x+p.w > b.x && p.x < b.x && p.x+p.w-p.vx <= b.x+2){
+        p.x = b.x - p.w;
+        p.vx = 0;
+      }
+      if(p.vx < 0 && p.x < b.right && p.x+p.w > b.right && p.x-p.vx >= b.right-2){
+        p.x = b.right;
+        p.vx = 0;
+      }
+    }
+  }
+
+  // reset clean-run timer / decay speed if we just took damage-free contact vs missed landing
+  if(!bestBuilding && !landed && p.onGround === false && wasOnGround){
+    // stepped off an edge — not a penalty by itself
+  }
+}
+
+function killPlayer(reason){
+  if(!player.alive) return;
+  player.alive = false;
+  player.deathReason = reason;
+  cameraShake = 18;
+  flashAlpha = 0.5;
+  triggerGameOver();
+}
+
+/* ---------- Particles (lightweight) ---------- */
+function spawnBurst(x,y,dir){
+  for(let i=0;i<6;i++){
+    particles.push({
+      x, y,
+      vx: (Math.random()-0.5)*3 + dir*1.5,
+      vy: -Math.random()*3-1,
+      life: 20+Math.random()*10,
+      maxLife: 30,
+      size: rand(2,4)
+    });
+  }
+}
+function updateParticles(){
+  for(let i=particles.length-1;i>=0;i--){
+    const pt = particles[i];
+    pt.x += pt.vx;
+    pt.y += pt.vy;
+    pt.vy += 0.25;
+    pt.life--;
+    if(pt.life<=0) particles.splice(i,1);
+  }
+}
+
+/* =========================================================
+   PARALLAX BACKGROUND
+   ========================================================= */
+class ParallaxLayer{
+  constructor(speedFactor, color, baseY, amp, segW, seedOffset){
+    this.speedFactor = speedFactor;
+    this.color = color;
+    this.baseY = baseY;
+    this.amp = amp;
+    this.segW = segW;
+    this.offset = 0;
+    this.seedOffset = seedOffset;
+    this.shapes = [];
+    this.generate();
+  }
+  generate(){
+    // generate a repeating skyline strip wider than screen
+    this.shapes = [];
+    let x = -this.segW;
+    let rng = this.seedOffset;
+    while(x < W + this.segW*3){
+      rng = (rng*9301+49297)%233280;
+      const h = this.amp*0.4 + (rng/233280)*this.amp;
+      const w = this.segW*0.6 + (rng%50)*4;
+      this.shapes.push({x, w, h});
+      x += w + 14;
+    }
+  }
+  update(scrollDx){
+    this.offset += scrollDx*this.speedFactor;
+  }
+  draw(){
+    ctx.fillStyle = this.color;
+    const totalW = this.shapes.length ? (this.shapes[this.shapes.length-1].x + this.shapes[this.shapes.length-1].w + 14) : W*2;
+    let ox = -(this.offset % totalW);
+    for(let rep=0; rep<3; rep++){
+      for(const s of this.shapes){
+        const sx = s.x + ox + rep*totalW;
+        if(sx > W+50 || sx+s.w < -50) continue;
+        ctx.fillRect(sx, this.baseY - s.h, s.w, s.h+300);
+        // little antenna/water tower details occasionally
+      }
+    }
+  }
+}
+
+const layerFar = new ParallaxLayer(0.08, '#c7d0e2', H-260, 160, 90, 17);
+const layerMid = new ParallaxLayer(0.22, '#aab6cf', H-220, 220, 110, 53);
+const layerNear = new ParallaxLayer(0.45, '#8b9ab8', H-190, 260, 130, 91);
+
+function updateParallax(scrollDx){
+  layerFar.update(scrollDx);
+  layerMid.update(scrollDx);
+  layerNear.update(scrollDx);
+}
+function drawParallax(){
+  // sky gradient already via CSS canvas bg; add soft sun glow + drifting clouds
+  drawClouds();
+  layerFar.draw();
+  layerMid.draw();
+  layerNear.draw();
+}
+
+/* clouds — simple drifting ellipse clusters, very slow parallax */
+const clouds = [];
+for(let i=0;i<6;i++){
+  clouds.push({x: rand(0,W), y: rand(40,180), s: rand(0.6,1.4), speed: rand(0.15,0.35)});
+}
+function updateClouds(){
+  for(const c of clouds){
+    c.x -= c.speed;
+    if(c.x < -150){ c.x = W+150; c.y = rand(40,180); }
+  }
+}
+function drawClouds(){
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  for(const c of clouds){
+    ctx.beginPath();
+    ctx.ellipse(c.x, c.y, 46*c.s, 16*c.s, 0, 0, Math.PI*2);
+    ctx.ellipse(c.x+30*c.s, c.y+6*c.s, 32*c.s, 13*c.s, 0, 0, Math.PI*2);
+    ctx.ellipse(c.x-28*c.s, c.y+8*c.s, 28*c.s, 12*c.s, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* =========================================================
+   RENDERING — BUILDINGS
+   ========================================================= */
+function drawBuildings(){
+  for(const b of world.buildings){
+    if(b.right < -20 || b.x > W+20) continue;
+    drawBuilding(b);
+  }
+}
+
+function drawBuilding(b){
+  const topY = b.topY + (b.fallen ? b.fallOffset : 0);
+  const rot = b.fallen ? clamp(b.fallOffset*0.01, 0, 0.5) * (b.seed>0.5?1:-1) : 0;
+
+  ctx.save();
+  if(b.fallen){
+    ctx.translate(b.x + b.w/2, topY);
+    ctx.rotate(rot);
+    ctx.translate(-(b.x + b.w/2), -topY);
+    ctx.globalAlpha = clamp(1 - b.fallOffset/240, 0, 1);
+  }
+
+  // building body — flat vector silhouette with subtle edge highlight
+  const bodyColor = b.opts.crumble ? '#5b6478' : '#374057';
+  ctx.fillStyle = bodyColor;
+  ctx.fillRect(b.x, topY, b.w, b.bottomY - topY);
+
+  // top edge highlight (crisp roofline)
+  ctx.fillStyle = b.crumbling ? '#ff8a65' : '#4a5570';
+  ctx.fillRect(b.x, topY, b.w, 6);
+
+  // crumble cracks visual once triggered
+  if(b.crumbling){
+    ctx.strokeStyle = 'rgba(255,90,54,0.7)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(b.x+b.w*0.3, topY+6);
+    ctx.lineTo(b.x+b.w*0.42, topY+30);
+    ctx.lineTo(b.x+b.w*0.25, topY+50);
+    ctx.moveTo(b.x+b.w*0.65, topY+6);
+    ctx.lineTo(b.x+b.w*0.55, topY+34);
+    ctx.stroke();
+  }
+
+  // windows grid (skip on crumble/fallen for perf+clarity)
+  if(!b.fallen){
+    ctx.fillStyle = 'rgba(238,241,246,0.14)';
+    const winW=10, winH=14, gapX=16, gapY=22;
+    for(let wy=topY+22; wy<H+20; wy+=gapY){
+      for(let wx=b.x+12; wx<b.right-12; wx+=gapX+winW){
+        // deterministic flicker using position
+        const on = ((Math.floor(wx)+Math.floor(wy)) % 7) !== 0;
+        ctx.fillStyle = on ? 'rgba(238,241,246,0.14)' : 'rgba(255,200,120,0.18)';
+        ctx.fillRect(wx, wy, winW, winH);
+      }
+    }
+  }
+
+  // WALL feature — tall accent face with grip marks
+  if(b.opts.wall){
+    const wallTopY = topY - b.opts.wall.height;
+    ctx.fillStyle = '#232b3d';
+    ctx.fillRect(b.x, wallTopY, b.w, b.opts.wall.height);
+    ctx.fillStyle = '#ff5a36';
+    ctx.fillRect(b.x, wallTopY, 5, b.opts.wall.height);
+    ctx.fillRect(b.x+b.w-5, wallTopY, 5, b.opts.wall.height);
+    // grip rungs
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    for(let gy=wallTopY+14; gy<topY-10; gy+=22){
+      ctx.fillRect(b.x+8, gy, b.w-16, 4);
+    }
+  }
+
+  // OVERHANG feature — hanging low ceiling block
+  if(b.opts.overhang){
+    const oh = b.opts.overhang;
+    const ceilingY = topY - oh.clearance;
+    ctx.fillStyle = '#2b3448';
+    ctx.fillRect(b.x+oh.offset, ceilingY-46, oh.width, 46+4);
+    ctx.fillStyle = '#ff5a36';
+    ctx.fillRect(b.x+oh.offset, ceilingY, oh.width, 4);
+    // warning stripes
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(b.x+oh.offset, ceilingY-10, oh.width, 10);
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 4;
+    for(let sx=b.x+oh.offset-10; sx<b.x+oh.offset+oh.width+10; sx+=12){
+      ctx.beginPath();
+      ctx.moveTo(sx, ceilingY-14);
+      ctx.lineTo(sx+14, ceilingY+4);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+/* =========================================================
+   RENDERING — PLAYER
+   ========================================================= */
+function drawPlayer(){
+  const p = player;
+  ctx.save();
+
+  // trail (motion streak) when fast
+  if(p.runSpeed > BASE_RUN_SPEED*1.4){
+    for(let i=0;i<p.trail.length;i++){
+      const t = p.trail[i];
+      const a = (i/p.trail.length)*0.18;
+      ctx.fillStyle = `rgba(255,90,54,${a})`;
+      const rw = t.sliding? 26:14, rh= t.sliding?14:22;
+      ctx.beginPath();
+      ctx.ellipse(t.x - (p.trail.length-i)*3*p.facing, t.y, rw*0.5, rh*0.5, 0,0,Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  const cx = p.x + p.w/2;
+  const cy = p.y + p.h/2;
+
+  // squash/stretch based on vy and landing
+  let sx=1, sy=1;
+  if(!p.onGround){
+    sy = clamp(1 - p.vy*0.012, 0.82, 1.18);
+    sx = clamp(1 + p.vy*0.008, 0.85, 1.15);
+  }
+  if(p.landingSquashTimer>0){
+    const t = p.landingSquashTimer/8;
+    sy = lerp(1, 0.6, t);
+    sx = lerp(1, 1.3, t);
+    p.landingSquashTimer--;
+  }
+
+  ctx.translate(cx, p.y+p.h);
+  ctx.scale(p.facing<0?-1:1, 1);
+  ctx.scale(sx, sy);
+
+  const bodyH = p.h;
+  const bodyW = p.w;
+
+  // legs animation (simple run cycle) only when grounded and moving
+  const running = p.onGround && Math.abs(p.vx) > 0.6 && !p.sliding;
+  if(running) p.stepPhase += Math.min(0.55, Math.abs(p.vx)*0.05);
+  const legSwing = running ? Math.sin(p.stepPhase)*10 : 0;
+
+  ctx.fillStyle = '#0e1420';
+
+  if(p.sliding){
+    // low, elongated slide pose
+    ctx.beginPath();
+    ctx.roundRect(-bodyW*0.9, -bodyH, bodyW*1.8, bodyH, 8);
+    ctx.fill();
+    ctx.fillStyle = '#ff5a36';
+    ctx.fillRect(-bodyW*0.9, -bodyH+4, 10, 6);
+  } else {
+    // legs
+    ctx.fillStyle = '#1a2233';
+    ctx.save();
+    ctx.translate(-4, -18);
+    ctx.rotate(legSwing*0.02);
+    ctx.fillRect(-4, 0, 8, 20);
+    ctx.restore();
+    ctx.save();
+    ctx.translate(4, -18);
+    ctx.rotate(-legSwing*0.02);
+    ctx.fillRect(-4, 0, 8, 20);
+    ctx.restore();
+
+    // torso
+    ctx.fillStyle = '#0e1420';
+    ctx.beginPath();
+    ctx.roundRect(-bodyW/2, -bodyH, bodyW, bodyH*0.62, 6);
+    ctx.fill();
+
+    // accent chest stripe
+    ctx.fillStyle = '#ff5a36';
+    ctx.fillRect(-bodyW/2, -bodyH+bodyH*0.30, bodyW, 6);
+
+    // head
+    ctx.fillStyle = '#0e1420';
+    ctx.beginPath();
+    ctx.roundRect(-9, -bodyH-14, 18, 18, 5);
+    ctx.fill();
+
+    // arm (leading, indicates motion)
+    ctx.fillStyle = '#1a2233';
+    const armSwing = running ? Math.sin(p.stepPhase+Math.PI)*14 : (p.onGround? 0 : -18);
+    ctx.save();
+    ctx.translate(bodyW*0.42, -bodyH*0.55);
+    ctx.rotate(armSwing*0.03);
+    ctx.fillRect(-3, 0, 6, 18);
+    ctx.restore();
+  }
+
+  ctx.restore();
+
+  // wall contact indicator (small grip spark)
+  if(p.wallContact !== 0){
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,90,54,0.6)';
+    const gx = p.wallContact>0 ? p.x+p.w+2 : p.x-2;
+    ctx.beginPath();
+    ctx.arc(gx, p.y+p.h*0.5, 4+Math.sin(p.frame*0.4)*2, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawParticles(){
+  for(const pt of particles){
+    const a = clamp(pt.life/pt.maxLife, 0, 1);
+    ctx.fillStyle = `rgba(255,255,255,${a*0.8})`;
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI*2);
+    ctx.fill();
+  }
+}
+
+/* =========================================================
+   UI WIRING
+   ========================================================= */
+const el = {
+  start: document.getElementById('start-screen'),
+  gameover: document.getElementById('gameover'),
+  hud: document.getElementById('hud'),
+  hudHigh: document.getElementById('hud-high'),
+  distance: document.getElementById('hud-distance'),
+  speed: document.getElementById('hud-speed'),
+  speedbar: document.getElementById('hud-speedbar'),
+  highVal: document.getElementById('hud-high-val'),
+  startHigh: document.getElementById('start-high'),
+  goDistance: document.getElementById('go-distance'),
+  goHigh: document.getElementById('go-high'),
+  goSpeed: document.getElementById('go-speed'),
+  goSub: document.getElementById('go-sub'),
+  goKicker: document.getElementById('go-kicker'),
+  btnStart: document.getElementById('btn-start'),
+  btnRestart: document.getElementById('btn-restart'),
+};
+
+function fmtDist(m){ return Math.floor(m) + 'm'; }
+
+function refreshStartHUD(){
+  el.startHigh.textContent = fmtDist(highScore);
+}
+refreshStartHUD();
+
+function startGame(){
+  gameState = 'playing';
+  world = new World();
+  particles = [];
+  distanceTraveled = 0;
+  cameraShake = 0;
+  flashAlpha = 0;
+  player.reset();
+  el.start.classList.add('hidden');
+  el.gameover.classList.add('hidden');
+  el.hud.style.display = 'flex';
+  el.hudHigh.style.display = 'block';
+}
+
+function triggerGameOver(){
+  gameState = 'gameover';
+  const finalDist = distanceTraveled;
+  const isNewHigh = finalDist > highScore;
+  if(isNewHigh){
+    highScore = finalDist;
+    saveHighScore(highScore);
+  }
+  el.goDistance.textContent = fmtDist(finalDist);
+  el.goHigh.textContent = fmtDist(highScore);
+  el.goSpeed.textContent = player.topSpeedThisRun.toFixed(1);
+  el.goSub.textContent = player.deathReason || 'The city doesn\'t wait.';
+  el.goKicker.textContent = isNewHigh ? 'New Personal Best!' : 'Run Ended';
+  document.getElementById('gameover').querySelector('.title').textContent = isNewHigh ? 'NEW RECORD' : 'FELL SHORT';
+  setTimeout(()=>{ el.gameover.classList.remove('hidden'); }, 260);
+}
+
+el.btnStart.addEventListener('click', startGame);
+el.btnRestart.addEventListener('click', startGame);
+
+/* =========================================================
+   MAIN LOOP
+   ========================================================= */
+function updateHUD(){
+  el.distance.textContent = fmtDist(distanceTraveled);
+  el.speed.textContent = player.runSpeed.toFixed(1);
+  const pct = clamp((player.runSpeed-BASE_RUN_SPEED)/(MAX_RUN_SPEED-BASE_RUN_SPEED),0,1)*100;
+  el.speedbar.style.width = pct + '%';
+  el.highVal.textContent = fmtDist(highScore);
+}
+
+let lastTime = performance.now();
+function loop(now){
+  requestAnimationFrame(loop);
+  const dt = Math.min(33, now-lastTime);
+  lastTime = now;
+
+  ctx.clearRect(0,0,W,H);
+
+  if(gameState === 'playing'){
+    updatePlayer();
+    updateParticles();
+    updateParallax(scrollSpeed);
+    updateClouds();
+    updateHUD();
+    if(cameraShake>0) cameraShake *= 0.88;
+    if(flashAlpha>0) flashAlpha *= 0.85;
+  } else if(gameState === 'start'){
+    updateParallax(1.4);
+    updateClouds();
+    scrollSpeed = 1.4;
+  } else if(gameState === 'gameover'){
+    updateParticles();
+    updateParallax(0);
+    updateClouds();
+    if(cameraShake>0) cameraShake *= 0.88;
+    if(flashAlpha>0) flashAlpha *= 0.85;
+  }
+
+  ctx.save();
+  if(cameraShake>0.3){
+    ctx.translate((Math.random()-0.5)*cameraShake, (Math.random()-0.5)*cameraShake);
+  }
+
+  drawParallax();
+  drawBuildings();
+  if(gameState !== 'start') drawParticles();
+  if(gameState !== 'start') drawPlayer();
+
+  ctx.restore();
+
+  if(flashAlpha>0.01){
+    ctx.fillStyle = `rgba(255,255,255,${flashAlpha})`;
+    ctx.fillRect(0,0,W,H);
+  }
+
+  // vignette for depth
+  const grad = ctx.createRadialGradient(W/2,H/2,H*0.4,W/2,H/2,H*0.9);
+  grad.addColorStop(0,'rgba(0,0,0,0)');
+  grad.addColorStop(1,'rgba(10,14,22,0.25)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,W,H);
+}
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
+
