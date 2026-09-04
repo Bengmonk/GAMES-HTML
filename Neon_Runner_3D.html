@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Runner: 3D Parkour</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Courier New', Courier, monospace;
+            user-select: none;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 10px;
+            height: 10px;
+            background: transparent;
+            border: 2px solid #0ff;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 8px #0ff;
+        }
+        #hud {
+            padding: 20px;
+            color: #f0f;
+            text-shadow: 0 0 5px #f0f;
+            font-size: 1.5rem;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+        }
+        #blocker {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(10, 0, 20, 0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            color: #0ff;
+            text-align: center;
+            text-shadow: 0 0 10px #0ff;
+        }
+        #instructions p { font-size: 1.2rem; color: #fff; text-shadow: none; }
+        .key { color: #f0f; font-weight: bold; }
+    </style>
+    <!-- Import Three.js and PointerLockControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <div id="hud">
+            <div>SPD: <span id="speed-display">0</span></div>
+            <div>DIST: <span id="distance-display">0</span>m</div>
+        </div>
+        <div id="crosshair"></div>
+    </div>
+
+    <div id="blocker">
+        <div id="instructions">
+            <h1 style="font-size: 4rem; margin-bottom: 0;">NEON RUNNER</h1>
+            <p>Click anywhere to play</p>
+            <p>
+                <span class="key">W A S D</span> = Move / Build Momentum<br>
+                <span class="key">SPACE</span> = Jump / Wall Jump<br>
+                <span class="key">SHIFT</span> (Holding) = Slide (Maintains momentum, lowers hitbox)<br>
+                <span class="key">MOUSE</span> = Look around
+            </p>
+            <p style="color: #bbb; font-size: 0.9rem;">
+                * Jump against walls to Wall-Run.<br>
+                * Hit the edge of a platform mid-air to Ledge Grab.<br>
+                * Don't fall into the void.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // --- Game Engine & State ---
+        let camera, scene, renderer, controls;
+        let objects = [];
+        let raycasterDown, raycasterForward, raycasterLeft, raycasterRight;
+
+        let moveForward = false;
+        let moveBackward = false;
+        let moveLeft = false;
+        let moveRight = false;
+        let canJump = false;
+        let isSliding = false;
+        let isWallRunning = false;
+        let wallRunSide = 0; // -1 left, 1 right
+
+        let prevTime = performance.now();
+        const velocity = new THREE.Vector3();
+        const direction = new THREE.Vector3();
+
+        // Constants & Config
+        const PLAYER_HEIGHT = 2;
+        const SLIDE_HEIGHT = 1;
+        const GRAVITY = 700;
+        const BASE_SPEED = 600;
+        const MAX_MOMENTUM = 2.0; 
+        const JUMP_FORCE = 250;
+        const WALL_RUN_GRAVITY = 150;
+        let momentumMultiplier = 1.0;
+        let distanceTraveled = 0;
+
+        // UI Elements
+        const speedDisplay = document.getElementById('speed-display');
+        const distanceDisplay = document.getElementById('distance-display');
+        const blocker = document.getElementById('blocker');
+        const instructions = document.getElementById('instructions');
+
+        init();
+        animate();
+
+        function init() {
+            // Setup Scene & Camera
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x050011);
+            scene.fog = new THREE.FogExp2(0x050011, 0.015);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            
+            // Lighting (Synthwave vibe)
+            const light = new THREE.HemisphereLight(0x00ffff, 0xff00ff, 0.8);
+            light.position.set(0.5, 1, 0.75);
+            scene.add(light);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            dirLight.position.set(-1, 1, -1);
+            scene.add(dirLight);
+
+            // Controls
+            controls = new THREE.PointerLockControls(camera, document.body);
+            
+            instructions.addEventListener('click', function () {
+                controls.lock();
+            });
+
+            controls.addEventListener('lock', function () {
+                instructions.style.display = 'none';
+                blocker.style.display = 'none';
+            });
+
+            controls.addEventListener('unlock', function () {
+                blocker.style.display = 'flex';
+                instructions.style.display = '';
+            });
+            scene.add(controls.getObject());
+            controls.getObject().position.y = PLAYER_HEIGHT;
+            controls.getObject().position.z = 5;
+
+            // Key Bindings
+            const onKeyDown = function (event) {
+                switch (event.code) {
+                    case 'ArrowUp':
+                    case 'KeyW': moveForward = true; break;
+                    case 'ArrowLeft':
+                    case 'KeyA': moveLeft = true; break;
+                    case 'ArrowDown':
+                    case 'KeyS': moveBackward = true; break;
+                    case 'ArrowRight':
+                    case 'KeyD': moveRight = true; break;
+                    case 'Space':
+                        if (canJump) {
+                            velocity.y += JUMP_FORCE;
+                            canJump = false;
+                        } else if (isWallRunning) {
+                            // Wall jump
+                            velocity.y = JUMP_FORCE * 0.8;
+                            velocity.x += wallRunSide * 100; // Jump away from wall
+                            isWallRunning = false;
+                        }
+                        break;
+                    case 'ShiftLeft':
+                    case 'KeyC':
+                        if (canJump && moveForward) {
+                            isSliding = true;
+                            camera.position.y = SLIDE_HEIGHT;
+                        }
+                        break;
+                    case 'KeyR':
+                        resetPlayer();
+                        break;
+                }
+            };
+
+            const onKeyUp = function (event) {
+                switch (event.code) {
+                    case 'ArrowUp':
+                    case 'KeyW': moveForward = false; break;
+                    case 'ArrowLeft':
+                    case 'KeyA': moveLeft = false; break;
+                    case 'ArrowDown':
+                    case 'KeyS': moveBackward = false; break;
+                    case 'ArrowRight':
+                    case 'KeyD': moveRight = false; break;
+                    case 'ShiftLeft':
+                    case 'KeyC':
+                        isSliding = false;
+                        camera.position.y = PLAYER_HEIGHT;
+                        break;
+                }
+            };
+
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+
+            // Raycasters for Physics
+            raycasterDown = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, -1, 0), 0, PLAYER_HEIGHT);
+            raycasterForward = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, 0, -1), 0, 1.5);
+            raycasterLeft = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(-1, 0, 0), 0, 1.5);
+            raycasterRight = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(1, 0, 0), 0, 1.5);
+
+            // Level Generation
+            generateStartingPlatform();
+            generateLevelChunk(-20);
+            generateLevelChunk(-60);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function createNeonBlock(w, h, d, x, y, z, color = 0x00ffff) {
+            const geometry = new THREE.BoxGeometry(w, h, d);
+            const material = new THREE.MeshLambertMaterial({ color: 0x111111 });
+            const cube = new THREE.Mesh(geometry, material);
+            
+            // Neon Wireframe edges
+            const edges = new THREE.EdgesGeometry(geometry);
+            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: color, linewidth: 2 }));
+            cube.add(line);
+            
+            cube.position.set(x, y, z);
+            scene.add(cube);
+            objects.push(cube);
+            return cube;
+        }
+
+        function generateStartingPlatform() {
+            createNeonBlock(20, 2, 30, 0, -1, 5, 0xff00ff);
+        }
+
+        function generateLevelChunk(startZ) {
+            // Procedurally generate obstacles, walls, and gaps
+            for(let i=0; i<5; i++) {
+                let zPos = startZ - (i * 20);
+                let type = Math.random();
+
+                if (type < 0.3) {
+                    // Standard gap jump
+                    createNeonBlock(10, 2, 10, 0, -1, zPos);
+                } else if (type < 0.6) {
+                    // Wall run segment
+                    createNeonBlock(10, 2, 10, 0, -1, zPos);
+                    createNeonBlock(2, 15, 20, -6, 6, zPos - 15, 0x00ff00); // Left wall
+                } else if (type < 0.8) {
+                    // Slide obstacle
+                    createNeonBlock(15, 2, 15, 0, -1, zPos);
+                    createNeonBlock(15, 5, 2, 0, 3, zPos, 0xffaa00); // Floating beam to slide under
+                } else {
+                    // High Ledge
+                    createNeonBlock(10, 6, 10, 0, 1, zPos, 0xff0000); 
+                }
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function resetPlayer() {
+            velocity.set(0,0,0);
+            controls.getObject().position.set(0, PLAYER_HEIGHT, 5);
+            momentumMultiplier = 1.0;
+        }
+
+        function cleanupAndGenerate() {
+            const playerZ = controls.getObject().position.z;
+            
+            // Generate ahead
+            if (objects.length > 0) {
+                const lastObjZ = objects[objects.length - 1].position.z;
+                if (playerZ - lastObjZ < 100) {
+                    generateLevelChunk(lastObjZ - 20);
+                }
+            }
+
+            // Cleanup behind
+            for (let i = objects.length - 1; i >= 0; i--) {
+                if (objects[i].position.z > playerZ + 30) {
+                    scene.remove(objects[i]);
+                    objects.splice(i, 1);
+                }
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = performance.now();
+
+            if (controls.isLocked === true) {
+                const delta = (time - prevTime) / 1000;
+                const playerPos = controls.getObject().position;
+                
+                // Update raycaster origins and directions based on camera
+                raycasterDown.ray.origin.copy(playerPos);
+                
+                let camDir = new THREE.Vector3();
+                camera.getWorldDirection(camDir);
+                camDir.y = 0; camDir.normalize(); // Keep it horizontal
+                
+                raycasterForward.ray.origin.copy(playerPos);
+                raycasterForward.ray.direction.copy(camDir);
+
+                let rightDir = new THREE.Vector3().crossVectors(camDir, new THREE.Vector3(0,1,0)).normalize();
+                let leftDir = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), camDir).normalize();
+                
+                raycasterRight.ray.origin.copy(playerPos);
+                raycasterRight.ray.direction.copy(rightDir);
+                
+                raycasterLeft.ray.origin.copy(playerPos);
+                raycasterLeft.ray.direction.copy(leftDir);
+
+                // --- Physics Intersections ---
+                const intersectionsDown = raycasterDown.intersectObjects(objects);
+                const intersectionsForward = raycasterForward.intersectObjects(objects);
+                const intersectionsLeft = raycasterLeft.intersectObjects(objects);
+                const intersectionsRight = raycasterRight.intersectObjects(objects);
+
+                const onObject = intersectionsDown.length > 0;
+                const hitWallForward = intersectionsForward.length > 0;
+                const wallLeft = intersectionsLeft.length > 0;
+                const wallRight = intersectionsRight.length > 0;
+
+                // --- Momentum & Sliding Mechanics ---
+                if (moveForward && onObject && !isSliding && !hitWallForward) {
+                    momentumMultiplier = Math.min(MAX_MOMENTUM, momentumMultiplier + delta * 0.2);
+                } else if (!moveForward || isSliding || hitWallForward) {
+                    momentumMultiplier = Math.max(1.0, momentumMultiplier - delta * 0.5);
+                }
+
+                let currentFriction = isSliding ? 2.0 : 10.0; // Less friction while sliding
+
+                velocity.x -= velocity.x * currentFriction * delta;
+                velocity.z -= velocity.z * currentFriction * delta;
+                
+                // --- Vertical Movement (Gravity, Jumping, Wall Running) ---
+                velocity.y -= GRAVITY * delta; 
+                isWallRunning = false;
+                wallRunSide = 0;
+                
+                // Ledge Grab (Mantle)
+                if (!onObject && hitWallForward && velocity.y < 0) {
+                    // Simple logic: if hit something forward, but upper body is clear
+                    let headRay = new THREE.Raycaster(new THREE.Vector3(playerPos.x, playerPos.y + 1, playerPos.z), camDir, 0, 1.5);
+                    if (headRay.intersectObjects(objects).length === 0) {
+                        velocity.y = JUMP_FORCE * 0.7; // Boost up
+                    }
+                }
+
+                // Wall Running
+                if (!onObject && (wallLeft || wallRight) && moveForward && velocity.y < 50) {
+                    isWallRunning = true;
+                    velocity.y = Math.max(velocity.y, -WALL_RUN_GRAVITY * delta); // Slow fall
+                    wallRunSide = wallLeft ? -1 : 1;
+                    canJump = true; // allow jump off wall
+                }
+
+                if (onObject) {
+                    velocity.y = Math.max(0, velocity.y);
+                    canJump = true;
+                }
+
+                // --- Apply WASD Input ---
+                direction.z = Number(moveForward) - Number(moveBackward);
+                direction.x = Number(moveRight) - Number(moveLeft);
+                direction.normalize();
+
+                let activeSpeed = BASE_SPEED * momentumMultiplier;
+                
+                if (moveForward || moveBackward) velocity.z -= direction.z * activeSpeed * delta;
+                if (moveLeft || moveRight) velocity.x -= direction.x * activeSpeed * delta;
+
+                // Collision buffer for forward movement
+                if (hitWallForward && !isWallRunning) {
+                    velocity.z = Math.max(0, velocity.z);
+                    velocity.x = 0;
+                    momentumMultiplier = 1.0;
+                }
+
+                controls.moveRight(-velocity.x * delta);
+                controls.moveForward(-velocity.z * delta);
+                controls.getObject().position.y += (velocity.y * delta);
+
+                // --- Camera Effects ---
+                // Camera Tilt (Wall run)
+                let targetTilt = isWallRunning ? (wallRunSide * 0.15) : 0;
+                camera.rotation.z = THREE.MathUtils.lerp(camera.rotation.z, targetTilt, 0.1);
+
+                // View Bobbing
+                if (onObject && (moveForward || moveBackward || moveLeft || moveRight) && !isSliding) {
+                    const bobSpeed = 15;
+                    const bobAmount = 0.08 * momentumMultiplier;
+                    camera.position.y = PLAYER_HEIGHT + Math.sin(time / 1000 * bobSpeed) * bobAmount;
+                } else if (!isSliding) {
+                    camera.position.y = THREE.MathUtils.lerp(camera.position.y, PLAYER_HEIGHT, 0.1);
+                }
+
+                // Death / Reset (Falling off map)
+                if (controls.getObject().position.y < -20) {
+                    resetPlayer();
+                }
+
+                // Level Management & UI
+                cleanupAndGenerate();
+                distanceTraveled = Math.max(distanceTraveled, -controls.getObject().position.z);
+                
+                // HUD Updates
+                const speedMagnitude = Math.sqrt(velocity.x*velocity.x + velocity.z*velocity.z).toFixed(0);
+                speedDisplay.innerText = speedMagnitude;
+                distanceDisplay.innerText = Math.floor(distanceTraveled);
+            }
+
+            prevTime = time;
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
