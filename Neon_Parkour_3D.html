@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Neon Parkour 3D: Synthwave Runner</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Courier New', Courier, monospace;
+            user-select: none;
+        }
+
+        #gameCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* Crosshair */
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 10px;
+            height: 10px;
+            background-color: #0ff;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            box-shadow: 0 0 10px #0ff;
+            opacity: 0.7;
+        }
+
+        /* HUD */
+        #hud {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #0ff;
+            text-shadow: 0 0 5px #0ff;
+            font-size: 1.2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .hud-panel {
+            background: rgba(0, 20, 40, 0.5);
+            padding: 10px 15px;
+            border-left: 4px solid #f0f;
+            border-bottom: 1px solid #f0f;
+        }
+
+        #speedometer {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #f0f;
+            text-shadow: 0 0 10px #f0f;
+        }
+
+        /* Instructions Screen */
+        #blocker {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 5, 15, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            color: #fff;
+            pointer-events: auto;
+            backdrop-filter: blur(4px);
+        }
+
+        #instructions {
+            text-align: center;
+            background: rgba(0, 255, 255, 0.05);
+            padding: 40px;
+            border: 1px solid #0ff;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.2), inset 0 0 20px rgba(255, 0, 255, 0.1);
+            max-width: 600px;
+        }
+
+        h1 {
+            color: #f0f;
+            text-shadow: 0 0 15px #f0f;
+            margin-top: 0;
+            font-size: 3rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            text-align: left;
+            margin: 30px 0;
+            color: #ddd;
+        }
+        
+        .controls-grid span {
+            color: #0ff;
+            font-weight: bold;
+        }
+
+        .mechanics {
+            font-size: 0.9rem;
+            color: #aaa;
+            text-align: left;
+            border-top: 1px dashed #f0f;
+            padding-top: 15px;
+            margin-bottom: 30px;
+        }
+
+        #playButton {
+            background: transparent;
+            color: #0ff;
+            border: 2px solid #0ff;
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            font-family: inherit;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: all 0.2s;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+        }
+
+        #playButton:hover {
+            background: #0ff;
+            color: #000;
+            box-shadow: 0 0 20px #0ff;
+        }
+
+        #vignette {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            box-shadow: inset 0 0 150px rgba(0,0,0,0.9);
+            z-index: 5;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="gameCanvas"></div>
+    
+    <div id="ui-layer">
+        <div id="vignette"></div>
+        <div id="crosshair"></div>
+        <div id="hud">
+            <div class="hud-panel">
+                SPEED <br>
+                <span id="speedometer">00</span> u/s
+            </div>
+            <div class="hud-panel">
+                DISTANCE <br>
+                <span id="distance">0</span> m
+            </div>
+        </div>
+    </div>
+
+    <div id="blocker">
+        <div id="instructions">
+            <h1>Neon Run</h1>
+            <p style="color: #0ff; font-size: 1.2rem;">ENDLESS CYBER-PARKOUR</p>
+            
+            <div class="controls-grid">
+                <div><span>W A S D</span> : Move / Accelerate</div>
+                <div><span>SPACE</span> : Jump</div>
+                <div><span>MOUSE</span> : Look</div>
+                <div><span>SHIFT / C</span> : Slide / Crouch</div>
+                <div><span>R</span> : Manual Restart</div>
+            </div>
+
+            <div class="mechanics">
+                <b>MECHANICS:</b><br>
+                - <b>Momentum:</b> Keep moving to build speed.<br>
+                - <b>Wall Run:</b> Jump at an angle into a vertical neon wall mid-air.<br>
+                - <b>Ledge Grab:</b> Hit the upper edge of an obstacle mid-jump to mantle.<br>
+                - <b>Slide:</b> Crouch while moving fast to slide under obstacles and maintain speed.
+            </div>
+
+            <button id="playButton">CLICK TO START</button>
+        </div>
+    </div>
+
+    <!-- Three.js and PointerLockControls from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+
+    <script>
+        // --- GLOBALS & CONFIG ---
+        let camera, scene, renderer, controls;
+        let cameraGroup; // Wrapper for head bobbing and tilting
+        
+        // Audio
+        let audioCtx, windGain, oscillatorNode;
+        let isAudioInit = false;
+
+        // UI Elements
+        const blocker = document.getElementById('blocker');
+        const playButton = document.getElementById('playButton');
+        const hud = document.getElementById('hud');
+        const speedDisplay = document.getElementById('speedometer');
+        const distDisplay = document.getElementById('distance');
+
+        // Physics & Movement State
+        let prevTime = performance.now();
+        const velocity = new THREE.Vector3();
+        const direction = new THREE.Vector3();
+        const playerPos = new THREE.Vector3(0, 20, 0); // Actual physics position
+        
+        // Player Dimensions & State
+        const playerRadius = 0.6;
+        let playerHeight = 2.4;
+        const normalHeight = 2.4;
+        const crouchHeight = 1.0;
+        
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        let canJump = false;
+        let isCrouching = false;
+        let isSliding = false;
+        let isWallRunning = false;
+        let wallRunSide = 0; // -1 left, 1 right
+        let wallRunTimer = 0;
+        let momentum = 1.0; // Multiplier that builds up
+        let distanceTraveled = 0;
+        let maxZReached = 0;
+
+        // Constants
+        const GRAVITY = 60.0;
+        const BASE_SPEED = 40.0;
+        const MAX_MOMENTUM = 2.2;
+        const JUMP_VELOCITY = 22.0;
+        const TERMINAL_VELOCITY = -50.0;
+
+        // Level Data
+        let platforms = []; // Array of physics AABB {x, y, z, hx, hy, hz, mesh}
+        const platformWidth = 20;
+        let currentLevelZ = 0;
+
+        init();
+        animate();
+
+        function init() {
+            // Setup Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x00020a);
+            scene.fog = new THREE.Fog(0x00020a, 10, 150);
+
+            // Setup Camera and Wrapper
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            cameraGroup = new THREE.Group();
+            cameraGroup.add(camera);
+            scene.add(cameraGroup);
+            
+            // Adjust camera eye level relative to physics body
+            camera.position.y = playerHeight * 0.4; 
+
+            // Setup Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.getElementById('gameCanvas').appendChild(renderer.domElement);
+
+            // Setup Controls
+            controls = new THREE.PointerLockControls(cameraGroup, document.body);
+
+            playButton.addEventListener('click', () => {
+                controls.lock();
+                initAudio();
+            });
+
+            controls.addEventListener('lock', () => {
+                blocker.style.display = 'none';
+                hud.style.opacity = '1';
+                if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            });
+
+            controls.addEventListener('unlock', () => {
+                blocker.style.display = 'flex';
+                hud.style.opacity = '0';
+            });
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
+            scene.add(ambientLight);
+            const dirLight = new THREE.DirectionalLight(0x00ffff, 0.3);
+            dirLight.position.set(-1, 1, 0.5);
+            scene.add(dirLight);
+
+            // Input Listeners
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+            window.addEventListener('resize', onWindowResize);
+
+            // Generate initial starting area
+            resetGame();
+        }
+
+        function initAudio() {
+            if(isAudioInit) return;
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+            
+            // Procedural Wind noise using buffer
+            const bufferSize = audioCtx.sampleRate * 2;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            
+            const noiseSource = audioCtx.createBufferSource();
+            noiseSource.buffer = buffer;
+            noiseSource.loop = true;
+            
+            // Lowpass filter for wind throb
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 400;
+            
+            windGain = audioCtx.createGain();
+            windGain.gain.value = 0;
+            
+            noiseSource.connect(filter);
+            filter.connect(windGain);
+            windGain.connect(audioCtx.destination);
+            noiseSource.start();
+            
+            isAudioInit = true;
+        }
+
+        function playJumpSound() {
+            if(!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.2);
+        }
+
+        function playStepSound() {
+            if(!audioCtx || !canJump || isSliding) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(80, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.05);
+            gain.gain.setValueAtTime(0.1 * momentum, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.05);
+        }
+
+        // --- LEVEL GENERATION ---
+        
+        function createBox(x, y, z, width, height, depth, colorEdge=0x00ffff, colorFill=0x000510) {
+            // Inner dark box
+            const geo = new THREE.BoxGeometry(width, height, depth);
+            const mat = new THREE.MeshPhongMaterial({ 
+                color: colorFill, 
+                emissive: 0x000000,
+                specular: 0x111111,
+                shininess: 10
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x, y, z);
+            scene.add(mesh);
+
+            // Outer glowing edges
+            const edges = new THREE.EdgesGeometry(geo);
+            const lineMat = new THREE.LineBasicMaterial({ color: colorEdge, linewidth: 2 });
+            const line = new THREE.LineSegments(edges, lineMat);
+            mesh.add(line);
+
+            // Add to physics AABB list
+            const aabb = {
+                x: x, y: y, z: z,
+                hx: width / 2, hy: height / 2, hz: depth / 2,
+                mesh: mesh
+            };
+            platforms.push(aabb);
+        }
+
+        function generateChunk(zOffset) {
+            const gap = 15;
+            let currentZ = zOffset;
+
+            for(let i=0; i<5; i++) {
+                const rType = Math.random();
+                
+                if (rType < 0.2) {
+                    // Standard gap jump
+                    createBox(0, 0, currentZ, 12, 10, 20, 0x00ffff);
+                    currentZ -= (20 + gap);
+                } 
+                else if (rType < 0.45) {
+                    // Wall run segment
+                    createBox(0, 0, currentZ, 12, 10, 15, 0x00ffff); // Base
+                    // Wall (left or right)
+                    const isLeft = Math.random() > 0.5;
+                    createBox(isLeft ? -7 : 7, 10, currentZ - 20, 2, 20, 30, 0xff00ff, 0x100010);
+                    // Landing pad
+                    createBox(0, 0, currentZ - 40, 12, 10, 15, 0x00ffff);
+                    currentZ -= 60;
+                }
+                else if (rType < 0.7) {
+                    // Slide under obstacle
+                    createBox(0, 0, currentZ, 12, 10, 30, 0x00ffff);
+                    // Floating archway low clearance
+                    createBox(0, 7.5, currentZ, 12, 2, 5, 0xffff00, 0x101000);
+                    currentZ -= 40;
+                }
+                else {
+                    // Ledge mantle setup
+                    createBox(0, 0, currentZ, 12, 10, 10, 0x00ffff);
+                    // Higher block to mantle onto
+                    createBox(0, 4, currentZ - 15, 12, 12, 15, 0x00ffff);
+                    currentZ -= 35;
+                }
+            }
+            return currentZ;
+        }
+
+        function updateProceduralLevel() {
+            // Generate ahead
+            if (playerPos.z - 200 < currentLevelZ) {
+                currentLevelZ = generateChunk(currentLevelZ);
+            }
+
+            // Cleanup behind
+            for (let i = platforms.length - 1; i >= 0; i--) {
+                if (platforms[i].z > playerPos.z + 50) {
+                    const p = platforms[i];
+                    scene.remove(p.mesh);
+                    // Dispose geometries/materials
+                    p.mesh.geometry.dispose();
+                    p.mesh.material.dispose();
+                    p.mesh.children[0].geometry.dispose();
+                    p.mesh.children[0].material.dispose();
+                    platforms.splice(i, 1);
+                }
+            }
+        }
+
+        function resetGame() {
+            // Clear platforms
+            platforms.forEach(p => {
+                scene.remove(p.mesh);
+                p.mesh.geometry.dispose();
+                p.mesh.material.dispose();
+            });
+            platforms = [];
+
+            playerPos.set(0, 15, 0);
+            velocity.set(0,0,0);
+            momentum = 1.0;
+            currentLevelZ = -10;
+            distanceTraveled = 0;
+            maxZReached = 0;
+            
+            // Starting platform
+            createBox(0, 0, 10, 20, 10, 40, 0x0fffff);
+            currentLevelZ = generateChunk(currentLevelZ);
+        }
+
+        // --- INPUT HANDLING ---
+
+        function onKeyDown(event) {
+            switch (event.code) {
+                case 'KeyW': moveForward = true; break;
+                case 'KeyA': moveLeft = true; break;
+                case 'KeyS': moveBackward = true; break;
+                case 'KeyD': moveRight = true; break;
+                case 'Space': 
+                    if (canJump || isWallRunning) jump(); 
+                    break;
+                case 'ShiftLeft':
+                case 'KeyC':
+                    isCrouching = true;
+                    if (Math.hypot(velocity.x, velocity.z) > 15 && canJump) {
+                        isSliding = true;
+                    }
+                    break;
+                case 'KeyR':
+                    resetGame();
+                    break;
+            }
+        }
+
+        function onKeyUp(event) {
+            switch (event.code) {
+                case 'KeyW': moveForward = false; break;
+                case 'KeyA': moveLeft = false; break;
+                case 'KeyS': moveBackward = false; break;
+                case 'KeyD': moveRight = false; break;
+                case 'ShiftLeft':
+                case 'KeyC':
+                    isCrouching = false;
+                    isSliding = false;
+                    break;
+            }
+        }
+
+        function jump() {
+            if (isWallRunning) {
+                // Wall jump push off
+                velocity.y = JUMP_VELOCITY * 0.8;
+                const camDir = controls.getDirection(new THREE.Vector3());
+                // push sideways away from wall
+                velocity.x -= wallRunSide * 15;
+                velocity.z += camDir.z * 10;
+                isWallRunning = false;
+            } else if (canJump) {
+                velocity.y = JUMP_VELOCITY;
+                canJump = false;
+            }
+            playJumpSound();
+            isSliding = false;
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- PHYSICS & COLLISION ENGINE ---
+
+        function checkAABBCollision(px, py, pz, radius, height, box) {
+            // Player is modeled as a cylinder/AABB. radius=hx/hz, height=hy*2
+            const phx = radius;
+            const phy = height / 2;
+            const phz = radius;
+
+            // Player center
+            const cx = px;
+            const cy = py;
+            const cz = pz;
+
+            // Box center
+            const bx = box.x;
+            const by = box.y;
+            const bz = box.z;
+
+            if (Math.abs(cx - bx) < (phx + box.hx) &&
+                Math.abs(cy - by) < (phy + box.hy) &&
+                Math.abs(cz - bz) < (phz + box.hz)) {
+                return true;
+            }
+            return false;
+        }
+
+        function resolveCollisions(axis, dt) {
+            let collisionHit = false;
+            let hitWall = false;
+            let hitCeiling = false;
+            
+            const phx = playerRadius;
+            const phy = playerHeight / 2;
+            const phz = playerRadius;
+
+            for (let i = 0; i < platforms.length; i++) {
+                const box = platforms[i];
+                if (checkAABBCollision(playerPos.x, playerPos.y, playerPos.z, playerRadius, playerHeight, box)) {
+                    collisionHit = true;
+                    
+                    if (axis === 'y') {
+                        if (velocity.y < 0) { // Falling onto floor
+                            playerPos.y = box.y + box.hy + phy;
+                            velocity.y = 0;
+                            canJump = true;
+                            isWallRunning = false;
+                        } else if (velocity.y > 0) { // Hitting ceiling
+                            playerPos.y = box.y - box.hy - phy;
+                            velocity.y = 0;
+                            hitCeiling = true;
+                        }
+                    } 
+                    else if (axis === 'x' || axis === 'z') {
+                        // Resolve X/Z push out
+                        const overlapX = (phx + box.hx) - Math.abs(playerPos.x - box.x);
+                        const overlapZ = (phz + box.hz) - Math.abs(playerPos.z - box.z);
+                        
+                        // Ledge Mantle Check
+                        // If colliding with wall, and the top of the box is near player waist/head
+                        const boxTop = box.y + box.hy;
+                        const playerFoot = playerPos.y - phy;
+                        
+                        if (velocity.y < 5 && !canJump && playerFoot < boxTop && playerFoot > boxTop - 1.5) {
+                            // Boost player up onto ledge
+                            playerPos.y = boxTop + phy + 0.1;
+                            velocity.y = 10;
+                            // Add slight forward boost relative to camera
+                            const camDir = controls.getDirection(new THREE.Vector3());
+                            velocity.x += camDir.x * 5;
+                            velocity.z += camDir.z * 5;
+                            return; // Skip other wall logic
+                        }
+
+                        if (overlapX < overlapZ) {
+                            playerPos.x += (playerPos.x > box.x ? overlapX : -overlapX);
+                            velocity.x = 0;
+                            hitWall = true;
+                            if(!canJump && Math.abs(velocity.y) < 15) {
+                                isWallRunning = true;
+                                wallRunSide = (playerPos.x > box.x) ? 1 : -1;
+                            }
+                        } else {
+                            playerPos.z += (playerPos.z > box.z ? overlapZ : -overlapZ);
+                            velocity.z = 0;
+                            hitWall = true;
+                        }
+                    }
+                }
+            }
+            
+            // If we resolved X/Z and didn't hit a wall but were wall running, cancel it
+            if ((axis === 'x' || axis === 'z') && !hitWall && isWallRunning) {
+                // Keep it true slightly for buffer, but handled in main loop
+            }
+        }
+
+
+        // --- MAIN LOOP ---
+
+        // Footstep timer
+        let lastStepTime = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const time = performance.now();
+            if (!controls.isLocked) {
+                prevTime = time;
+                renderer.render(scene, camera);
+                return;
+            }
+
+            const dt = Math.min((time - prevTime) / 1000, 0.1); // cap delta time
+            prevTime = time;
+
+            // Height & Slide dynamics
+            const targetHeight = isCrouching || isSliding ? crouchHeight : normalHeight;
+            playerHeight += (targetHeight - playerHeight) * 15 * dt;
+            camera.position.y = playerHeight * 0.4; // Local to cameraGroup
+
+            // Input Vectors relative to camera
+            direction.z = Number(moveForward) - Number(moveBackward);
+            direction.x = Number(moveRight) - Number(moveLeft);
+            direction.normalize();
+
+            // Momentum & Speed Building
+            const isMovingInput = (moveForward || moveBackward || moveLeft || moveRight);
+            if (isMovingInput && canJump && !isSliding) {
+                momentum = Math.min(momentum + dt * 0.2, MAX_MOMENTUM);
+            } else if (!isMovingInput && canJump) {
+                momentum = Math.max(momentum - dt * 1.5, 1.0);
+            }
+
+            let currentMaxSpeed = BASE_SPEED * momentum;
+            let accel = canJump ? 100.0 : 25.0; // Less control in air
+            let friction = 8.0;
+
+            if (isSliding) {
+                friction = 1.5;
+                accel = 0; // Can't steer while sliding
+            }
+
+            // Apply friction to XZ velocity
+            if (canJump) {
+                velocity.x -= velocity.x * friction * dt;
+                velocity.z -= velocity.z * friction * dt;
+            } else {
+                // Air drag
+                velocity.x -= velocity.x * 0.5 * dt;
+                velocity.z -= velocity.z * 0.5 * dt;
+            }
+
+            // Get camera rotation for relative movement
+            const camDir = controls.getDirection(new THREE.Vector3());
+            camDir.y = 0; camDir.normalize();
+            const camRight = new THREE.Vector3().crossVectors(camDir, new THREE.Vector3(0,1,0)).normalize();
+
+            // Apply Input Acceleration
+            if (!isSliding) {
+                velocity.x += (camRight.x * direction.x + camDir.x * direction.z) * accel * dt;
+                velocity.z += (camRight.z * direction.x + camDir.z * direction.z) * accel * dt;
+            }
+
+            // Cap XZ velocity
+            const currentSpeed = Math.hypot(velocity.x, velocity.z);
+            if (currentSpeed > currentMaxSpeed && !isSliding) {
+                const ratio = currentMaxSpeed / currentSpeed;
+                velocity.x *= ratio;
+                velocity.z *= ratio;
+            }
+
+            // Gravity & Wall Run Logic
+            let currentGravity = GRAVITY;
+            if (isWallRunning) {
+                currentGravity = GRAVITY * 0.1; // Slow slide down wall
+                wallRunTimer += dt;
+                if (wallRunTimer > 1.5) isWallRunning = false; // Detach after 1.5s
+            } else {
+                wallRunTimer = 0;
+            }
+
+            velocity.y -= currentGravity * dt;
+            if (velocity.y < TERMINAL_VELOCITY) velocity.y = TERMINAL_VELOCITY;
+
+            // Reset grounded state before physics pass
+            canJump = false;
+            isWallRunning = false;
+
+            // Apply Velocity & Check Collisions Axis by Axis
+            playerPos.x += velocity.x * dt;
+            resolveCollisions('x', dt);
+
+            playerPos.z += velocity.z * dt;
+            resolveCollisions('z', dt);
+
+            playerPos.y += velocity.y * dt;
+            resolveCollisions('y', dt);
+
+            // Update Camera Group Position
+            cameraGroup.position.copy(playerPos);
+
+            // Procedural Level & Bounds Check
+            updateProceduralLevel();
+
+            if (playerPos.y < -30) {
+                resetGame();
+            }
+
+            // Camera Bobbing & Tilt Effects
+            let targetTilt = 0;
+            if (isWallRunning) {
+                targetTilt = wallRunSide * 0.25;
+            }
+            camera.rotation.z += (targetTilt - camera.rotation.z) * 0.1;
+
+            if (canJump && isMovingInput && !isSliding) {
+                // View bobbing
+                const speedScale = currentSpeed / BASE_SPEED;
+                camera.position.y += Math.sin(time * 0.015 * speedScale) * 0.08;
+                
+                // Footstep sounds
+                if (time - lastStepTime > 400 / speedScale) {
+                    playStepSound();
+                    lastStepTime = time;
+                }
+            }
+
+            // Audio synthesis update
+            if (audioCtx && windGain) {
+                const speedVol = Math.max(0, (currentSpeed - 20) / 40);
+                windGain.gain.setTargetAtTime(speedVol * 0.3, audioCtx.currentTime, 0.1);
+            }
+
+            // Update HUD
+            const displaySpeed = Math.round(currentSpeed);
+            speedDisplay.innerText = displaySpeed.toString().padStart(2, '0');
+            
+            // Distance tracking (moving along negative Z)
+            if (-playerPos.z > maxZReached) {
+                maxZReached = -playerPos.z;
+                distanceTraveled = Math.round(maxZReached);
+                distDisplay.innerText = distanceTraveled;
+            }
+            
+            // HUD color based on sliding/wallrun
+            if (isSliding) speedDisplay.style.color = '#ff0000';
+            else if (isWallRunning) speedDisplay.style.color = '#00ff00';
+            else speedDisplay.style.color = '#f0f';
+
+            renderer.render(scene, camera);
+        }
+
+    </script>
+</body>
+</html>
