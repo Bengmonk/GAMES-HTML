@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SKYLINE - First-Person Flight</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            background: #000;
+            color: #fff;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100vh;
+        }
+
+        #hud {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            color: rgba(200, 200, 200, 0.8);
+            text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+            pointer-events: none;
+            line-height: 1.6;
+        }
+
+        #hudRight {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            color: rgba(200, 200, 200, 0.8);
+            text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+            pointer-events: none;
+            line-height: 1.6;
+            text-align: right;
+        }
+
+        #menu {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #001a4d 0%, #000 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 1000;
+            color: #fff;
+        }
+
+        #menu.hidden {
+            display: none;
+        }
+
+        .menu-title {
+            font-size: 72px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-shadow: 0 0 30px rgba(100, 150, 255, 0.5);
+            letter-spacing: 8px;
+        }
+
+        .menu-subtitle {
+            font-size: 18px;
+            margin-bottom: 50px;
+            color: rgba(200, 200, 200, 0.7);
+            letter-spacing: 3px;
+        }
+
+        .menu-button {
+            padding: 15px 50px;
+            margin: 10px 0;
+            font-size: 18px;
+            background: rgba(100, 150, 255, 0.2);
+            border: 2px solid rgba(100, 150, 255, 0.5);
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 300px;
+            text-align: center;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .menu-button:hover {
+            background: rgba(100, 150, 255, 0.4);
+            border-color: rgba(100, 150, 255, 0.8);
+            box-shadow: 0 0 20px rgba(100, 150, 255, 0.4);
+        }
+
+        .menu-section {
+            display: none;
+            text-align: center;
+            max-width: 600px;
+        }
+
+        .menu-section.active {
+            display: block;
+        }
+
+        .menu-back {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            padding: 10px 20px;
+            background: rgba(100, 150, 255, 0.2);
+            border: 1px solid rgba(100, 150, 255, 0.5);
+            color: #fff;
+            cursor: pointer;
+            font-size: 14px;
+            border-radius: 4px;
+            z-index: 1001;
+            display: none;
+        }
+
+        .menu-back:hover {
+            background: rgba(100, 150, 255, 0.4);
+        }
+
+        .controls-list {
+            text-align: left;
+            display: inline-block;
+            margin: 30px 0;
+            font-family: 'Courier New', monospace;
+            line-height: 2;
+        }
+
+        .control-item {
+            font-size: 14px;
+            margin: 8px 0;
+        }
+
+        .control-key {
+            color: rgba(100, 150, 255, 0.8);
+            font-weight: bold;
+            min-width: 60px;
+            display: inline-block;
+        }
+
+        .settings-item {
+            margin: 25px 0;
+            text-align: left;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .settings-label {
+            font-size: 14px;
+            margin-bottom: 8px;
+            display: block;
+            color: rgba(200, 200, 200, 0.8);
+        }
+
+        .settings-slider {
+            width: 100%;
+            height: 6px;
+            background: rgba(100, 150, 255, 0.2);
+            outline: none;
+            cursor: pointer;
+            border-radius: 3px;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .settings-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: rgba(100, 150, 255, 0.8);
+            cursor: pointer;
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(100, 150, 255, 0.5);
+        }
+
+        .settings-slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: rgba(100, 150, 255, 0.8);
+            cursor: pointer;
+            border-radius: 50%;
+            border: none;
+            box-shadow: 0 0 10px rgba(100, 150, 255, 0.5);
+        }
+
+        .settings-value {
+            font-size: 12px;
+            color: rgba(100, 150, 255, 0.6);
+            margin-top: 5px;
+        }
+
+        #pauseMenu {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 500;
+        }
+
+        #pauseMenu.active {
+            display: flex;
+        }
+
+        .pause-title {
+            font-size: 48px;
+            margin-bottom: 40px;
+            letter-spacing: 4px;
+        }
+
+        #pressAnyKey {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 16px;
+            color: rgba(200, 200, 200, 0.6);
+            animation: blink 1.5s infinite;
+            z-index: 99;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        .altitude-warning {
+            position: fixed;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 18px;
+            color: #ff6b6b;
+            text-shadow: 0 0 20px rgba(255, 107, 107, 0.6);
+            z-index: 100;
+            display: none;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        .altitude-warning.show {
+            display: block;
+        }
+
+        #graphicsQuality {
+            width: 100%;
+            padding: 8px;
+            background: rgba(100, 150, 255, 0.2);
+            border: 1px solid rgba(100, 150, 255, 0.5);
+            color: #fff;
+            border-radius: 4px;
+            font-family: Arial, sans-serif;
+        }
+
+        #graphicsQuality option {
+            background: #001a4d;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div id="menu">
+        <div id="mainMenu" class="menu-section active">
+            <div class="menu-title">SKYLINE</div>
+            <div class="menu-subtitle">FIRST-PERSON FLIGHT</div>
+            <button class="menu-button" onclick="startFlight()">START FLIGHT</button>
+            <button class="menu-button" onclick="showControls()">CONTROLS</button>
+            <button class="menu-button" onclick="showSettings()">SETTINGS</button>
+        </div>
+
+        <div id="controlsMenu" class="menu-section">
+            <h2 style="margin-bottom: 30px; font-size: 36px; letter-spacing: 3px;">CONTROLS</h2>
+            <div class="controls-list">
+                <div class="control-item"><span class="control-key">W / S</span> Pitch Up / Down</div>
+                <div class="control-item"><span class="control-key">A / D</span> Roll Left / Right</div>
+                <div class="control-item"><span class="control-key">Q / E</span> Yaw Left / Right</div>
+                <div class="control-item"><span class="control-key">SHIFT</span> Increase Throttle</div>
+                <div class="control-item"><span class="control-key">CTRL</span> Decrease Throttle</div>
+                <div class="control-item"><span class="control-key">SPACE</span> Air Brake</div>
+                <div class="control-item"><span class="control-key">MOUSE</span> Look Around Cockpit</div>
+                <div class="control-item"><span class="control-key">ESC</span> Pause / Resume</div>
+            </div>
+            <button class="menu-button" onclick="showMainMenu()" style="margin-top: 40px;">BACK</button>
+        </div>
+
+        <div id="settingsMenu" class="menu-section">
+            <h2 style="margin-bottom: 30px; font-size: 36px; letter-spacing: 3px;">SETTINGS</h2>
+            
+            <div class="settings-item">
+                <label class="settings-label">Graphics Quality</label>
+                <select id="graphicsQuality" onchange="updateGraphicsQuality()">
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                </select>
+            </div>
+
+            <div class="settings-item">
+                <label class="settings-label">Cloud Density</label>
+                <input type="range" id="cloudQuality" class="settings-slider" min="0.3" max="1" step="0.1" value="1" oninput="updateCloudQuality()">
+                <div class="settings-value" id="cloudQualityValue">High</div>
+            </div>
+
+            <div class="settings-item">
+                <label class="settings-label">Shadow Quality</label>
+                <input type="range" id="shadowQuality" class="settings-slider" min="0" max="1" step="0.25" value="1" oninput="updateShadowQuality()">
+                <div class="settings-value" id="shadowQualityValue">High</div>
+            </div>
+
+            <div class="settings-item">
+                <label class="settings-label">Mouse Sensitivity</label>
+                <input type="range" id="mouseSensitivity" class="settings-slider" min="0.1" max="2" step="0.1" value="1" oninput="updateMouseSensitivity()">
+                <div class="settings-value" id="mouseSensitivityValue">1.0x</div>
+            </div>
+
+            <div class="settings-item">
+                <label class="settings-label">Master Volume</label>
+                <input type="range" id="masterVolume" class="settings-slider" min="0" max="1" step="0.1" value="0.5" oninput="updateMasterVolume()">
+                <div class="settings-value" id="masterVolumeValue">50%</div>
+            </div>
+
+            <button class="menu-button" onclick="showMainMenu()" style="margin-top: 40px;">BACK</button>
+        </div>
+    </div>
+
+    <div id="pauseMenu">
+        <div class="pause-title">PAUSED</div>
+        <button class="menu-button" onclick="togglePause()">RESUME</button>
+        <button class="menu-button" onclick="returnToMainMenu()">MAIN MENU</button>
+    </div>
+
+    <div id="hud">
+        <div>ALTITUDE: <span id="altitudeDisplay">0</span> ft</div>
+        <div>AIRSPEED: <span id="airspeedDisplay">0</span> kts</div>
+        <div>V/S: <span id="vsDisplay">0</span> ft/min</div>
+        <div>HEADING: <span id="headingDisplay">0</span>°</div>
+        <div>THROTTLE: <span id="throttleDisplay">0</span>%</div>
+    </div>
+
+    <div id="hudRight">
+        <div>ENGINE: <span id="engineStatus">OK</span></div>
+        <div>TEMP: <span id="engineTemp">72</span>°C</div>
+        <div>FUEL: <span id="fuelStatus">100</span>%</div>
+    </div>
+
+    <div id="pressAnyKey">Press START to begin flight...</div>
+
+    <div id="altitudeWarning" class="altitude-warning">EXTREME ALTITUDE</div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // ============================================
+        // SKYLINE: First-Person Flight Game
+        // Enhanced with dramatic outdoor visuals
+        // ============================================
+
+        const CONFIG = {
+            graphics: 'medium',
+            cloudQuality: 1.0,
+            shadowQuality: 1.0,
+            mouseSensitivity: 1.0,
+            masterVolume: 0.5,
+            engineVolume: 0.5
+        };
+
+        // THREE.JS SCENE SETUP
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 500000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setClearColor(0x87ceeb);
+        document.body.appendChild(renderer.domElement);
+
+        // FLIGHT STATE
+        const flightState = {
+            position: new THREE.Vector3(0, 5000, 0),
+            velocity: new THREE.Vector3(0, 0, 0),
+            
+            pitch: 0,
+            roll: 0,
+            yaw: 0,
+            
+            pitchRate: 0,
+            rollRate: 0,
+            yawRate: 0,
+            
+            airspeed: 0,
+            maxAirspeed: 500,
+            
+            throttle: 0,
+            maxThrottle: 100,
+            
+            altitude: 5000,
+            verticalSpeed: 0,
+            heading: 0,
+            
+            engineRunning: true,
+            vibrationIntensity: 0,
+            turbulenceIntensity: 0
+        };
+
+        // INPUT HANDLING
+        const keys = {};
+        let mouseX = 0.5, mouseY = 0.5;
+        let mouseInWindow = true;
+
+        window.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                togglePause();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX / window.innerWidth;
+            mouseY = e.clientY / window.innerHeight;
+        });
+
+        window.addEventListener('mouseenter', () => { mouseInWindow = true; });
+        window.addEventListener('mouseleave', () => { mouseInWindow = false; });
+
+        // CAMERA LOOK CONTROL
+        let camPitch = 0, camYaw = 0;
+
+        function updateCameraLook() {
+            if (!mouseInWindow) return;
+
+            const sensitivity = CONFIG.mouseSensitivity * 0.003;
+            camYaw -= (mouseX - 0.5) * 2 * sensitivity * 100;
+            camPitch += (mouseY - 0.5) * 2 * sensitivity * 100;
+
+            camPitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camPitch));
+        }
+
+        // FLIGHT PHYSICS ENGINE
+        function updateFlightPhysics(deltaTime) {
+            if (flightState.engineRunning) {
+                if (keys['shift']) {
+                    flightState.throttle = Math.min(flightState.throttle + 0.5 * deltaTime, 100);
+                }
+                if (keys['control'] || keys['ctrl']) {
+                    flightState.throttle = Math.max(flightState.throttle - 0.5 * deltaTime, 0);
+                }
+            }
+
+            // Control inputs with smooth damping
+            const controlResponse = 0.05;
+            if (keys['w']) flightState.pitchRate = Math.min(flightState.pitchRate + controlResponse, 1);
+            if (keys['s']) flightState.pitchRate = Math.max(flightState.pitchRate - controlResponse, -1);
+            if (keys['a']) flightState.rollRate = Math.min(flightState.rollRate + controlResponse, 1);
+            if (keys['d']) flightState.rollRate = Math.max(flightState.rollRate - controlResponse, -1);
+            if (keys['q']) flightState.yawRate = Math.min(flightState.yawRate + controlResponse * 0.5, 0.5);
+            if (keys['e']) flightState.yawRate = Math.max(flightState.yawRate - controlResponse * 0.5, -0.5);
+
+            flightState.pitchRate *= 0.92;
+            flightState.rollRate *= 0.92;
+            flightState.yawRate *= 0.92;
+
+            flightState.pitch += flightState.pitchRate * 0.02;
+            flightState.roll += flightState.rollRate * 0.02;
+            flightState.yaw += flightState.yawRate * 0.01;
+
+            flightState.pitch = Math.max(-Math.PI * 0.5, Math.min(Math.PI * 0.5, flightState.pitch));
+
+            let dragMultiplier = 1;
+            if (keys[' ']) {
+                dragMultiplier = 0.6;
+                flightState.airspeed *= 0.97;
+            }
+
+            const targetAirspeed = (flightState.throttle / 100) * flightState.maxAirspeed;
+            flightState.airspeed += (targetAirspeed - flightState.airspeed) * 0.02 * dragMultiplier;
+
+            // Build flight vectors
+            const forward = new THREE.Vector3(
+                Math.sin(flightState.yaw) * Math.cos(flightState.pitch),
+                Math.sin(flightState.pitch),
+                Math.cos(flightState.yaw) * Math.cos(flightState.pitch)
+            ).normalize();
+
+            const right = new THREE.Vector3(
+                Math.cos(flightState.yaw + Math.PI / 2),
+                0,
+                Math.sin(flightState.yaw + Math.PI / 2)
+            ).normalize();
+
+            const up = new THREE.Vector3().crossVectors(right, forward).normalize();
+
+            // Lift calculation
+            const liftFactor = Math.max(0, Math.cos(flightState.pitch)) * (flightState.airspeed / 250);
+            const lift = up.clone().multiplyScalar(liftFactor * 50);
+
+            const gravity = new THREE.Vector3(0, -9.8, 0);
+            const dragForce = forward.clone().multiplyScalar(flightState.airspeed * -0.1 * dragMultiplier);
+
+            const acceleration = new THREE.Vector3()
+                .add(lift)
+                .add(gravity)
+                .add(dragForce)
+                .add(forward.multiplyScalar(flightState.airspeed * 0.5));
+
+            flightState.velocity.add(acceleration.multiplyScalar(deltaTime * 0.001));
+
+            const speed = flightState.velocity.length();
+            if (speed > flightState.maxAirspeed * 1.5) {
+                flightState.velocity.multiplyScalar((flightState.maxAirspeed * 1.5) / speed);
+            }
+
+            flightState.position.add(flightState.velocity.clone().multiplyScalar(deltaTime));
+
+            flightState.altitude = flightState.position.y;
+            flightState.verticalSpeed = flightState.velocity.y * 196.85;
+            flightState.heading = ((flightState.yaw * 180 / Math.PI) % 360 + 360) % 360;
+
+            flightState.turbulenceIntensity = Math.sin(Date.now() * 0.001) * 0.3 + Math.random() * 0.2;
+            if (flightState.altitude < 10000) {
+                flightState.turbulenceIntensity *= Math.max(0.5, 1 - flightState.altitude / 10000);
+            }
+
+            flightState.vibrationIntensity = (flightState.throttle / 100) * 0.005 + Math.random() * 0.002;
+        }
+
+        // WORLD OBJECTS
+        let terrain;
+        let cloudLayers = [];
+        let skyDome;
+        let sunObject;
+
+        function createTerrain() {
+            const terrainGeometry = new THREE.PlaneGeometry(200000, 200000, 128, 128);
+            
+            // Add terrain variation
+            const positionAttribute = terrainGeometry.getAttribute('position');
+            for (let i = 0; i < positionAttribute.count; i++) {
+                const x = positionAttribute.getX(i);
+                const z = positionAttribute.getZ(i);
+                const noise = Math.sin(x * 0.0001) * Math.cos(z * 0.0001) * 500;
+                positionAttribute.setY(i, noise);
+            }
+            positionAttribute.needsUpdate = true;
+
+            const terrainMaterial = new THREE.MeshPhongMaterial({
+                color: 0x1a4d2e,
+                side: THREE.DoubleSide,
+                wireframe: false,
+                shininess: 30
+            });
+            terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
+            terrain.rotation.x = -Math.PI / 2;
+            terrain.position.y = -2000;
+            scene.add(terrain);
+        }
+
+        function createClouds() {
+            cloudLayers = [];
+            const cloudAltitudes = [2000, 3500, 5500, 7500, 10000, 13000, 16000, 20000, 25000, 32000];
+            
+            cloudAltitudes.forEach((alt) => {
+                const cloudCount = Math.floor(50 * CONFIG.cloudQuality);
+                const layer = {
+                    altitude: alt,
+                    clouds: []
+                };
+
+                for (let i = 0; i < cloudCount; i++) {
+                    const cloud = createCloudCluster(
+                        Math.random() * 120000 - 60000,
+                        alt,
+                        Math.random() * 120000 - 60000,
+                        0.4 + Math.random() * 1.8
+                    );
+                    layer.clouds.push(cloud);
+                    scene.add(cloud);
+                }
+
+                cloudLayers.push(layer);
+            });
+        }
+
+        function createCloudCluster(x, y, z, scale) {
+            const group = new THREE.Group();
+            const cloudCount = 5 + Math.floor(Math.random() * 6);
+
+            for (let i = 0; i < cloudCount; i++) {
+                const cloudGeometry = new THREE.SphereGeometry(
+                    250 * scale + Math.random() * 300,
+                    12,
+                    12
+                );
+
+                const whiteVal = 0.95 + Math.random() * 0.05;
+                const cloudMaterial = new THREE.MeshStandardMaterial({
+                    color: new THREE.Color(whiteVal, whiteVal, whiteVal),
+                    emissive: new THREE.Color(0.3, 0.3, 0.3),
+                    emissiveIntensity: 0.5,
+                    roughness: 0.7,
+                    metalness: 0.0,
+                    side: THREE.DoubleSide,
+                    fog: true
+                });
+
+                const cloudMesh = new THREE.Mesh(cloudGeometry, cloudMaterial);
+                cloudMesh.position.set(
+                    (Math.random() - 0.5) * 1000 * scale,
+                    (Math.random() - 0.4) * 500 * scale,
+                    (Math.random() - 0.5) * 1000 * scale
+                );
+                cloudMesh.scale.set(1, 0.5 + Math.random() * 0.5, 1.3 + Math.random() * 0.3);
+                cloudMesh.castShadow = true;
+                cloudMesh.receiveShadow = true;
+                group.add(cloudMesh);
+            }
+
+            group.position.set(x, y, z);
+            group.userData = {
+                baseX: x,
+                baseZ: z,
+                baseY: y,
+                windSpeed: 2 + Math.random() * 3,
+                driftOffset: Math.random() * Math.PI * 2
+            };
+
+            return group;
+        }
+
+        function createSkyDome() {
+            const skyGeometry = new THREE.SphereGeometry(450000, 64, 64);
+            const skyMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    altitude: { value: 5000 },
+                    sunDirection: { value: new THREE.Vector3(0.4, 0.7, 0.3).normalize() },
+                    sunColor: { value: new THREE.Color(1, 0.95, 0.8) },
+                    time: { value: 0 }
+                },
+                vertexShader: `
+                    varying vec3 vNormal;
+                    varying vec3 vPosition;
+                    
+                    void main() {
+                        vNormal = normalize(normalMatrix * normal);
+                        vPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform float altitude;
+                    uniform vec3 sunDirection;
+                    uniform vec3 sunColor;
+                    uniform float time;
+                    
+                    varying vec3 vNormal;
+                    varying vec3 vPosition;
+                    
+                    void main() {
+                        vec3 normal = normalize(vNormal);
+                        float altitudeRatio = min(altitude / 60000.0, 1.0);
+                        
+                        // Sky colors based on altitude
+                        vec3 horizonColor = vec3(1.0, 0.85, 0.6);
+                        vec3 skyLow = vec3(0.55, 0.85, 0.95);
+                        vec3 skyMid = vec3(0.3, 0.6, 0.9);
+                        vec3 skyHigh = vec3(0.1, 0.15, 0.5);
+                        
+                        vec3 finalSky = mix(horizonColor, skyLow, abs(normal.y) * 0.5);
+                        finalSky = mix(finalSky, skyMid, altitudeRatio * 0.4);
+                        finalSky = mix(finalSky, skyHigh, altitudeRatio * altitudeRatio * 0.8);
+                        
+                        // Horizon glow
+                        float horizonDistance = 1.0 - abs(normal.y);
+                        vec3 horizonGlow = vec3(1.0, 0.7, 0.3) * pow(horizonDistance, 8.0) * 0.3;
+                        
+                        // Sun position and glow
+                        float sunDot = max(dot(normal, sunDirection), 0.0);
+                        vec3 sunGlow = sunColor * pow(sunDot, 2.0) * 0.8;
+                        
+                        // Add some atmospheric banding
+                        float bands = sin(normal.y * 20.0 + time * 0.1) * 0.05;
+                        
+                        finalSky += horizonGlow + sunGlow + bands * 0.1;
+                        
+                        gl_FragColor = vec4(finalSky, 1.0);
+                    }
+                `,
+                side: THREE.BackSide,
+                fog: false
+            });
+
+            skyDome = new THREE.Mesh(skyGeometry, skyMaterial);
+            skyDome.position.copy(camera.position);
+            scene.add(skyDome);
+        }
+
+        // LIGHTING SYSTEM
+        function setupLighting() {
+            const sunLight = new THREE.DirectionalLight(0xffffff, 1.3);
+            sunLight.position.set(60000, 120000, 40000);
+            sunLight.castShadow = CONFIG.shadowQuality > 0;
+            sunLight.shadow.mapSize.width = 8192;
+            sunLight.shadow.mapSize.height = 8192;
+            sunLight.shadow.camera.far = 500000;
+            sunLight.shadow.camera.left = -150000;
+            sunLight.shadow.camera.right = 150000;
+            sunLight.shadow.camera.top = 150000;
+            sunLight.shadow.camera.bottom = -150000;
+            sunLight.shadow.bias = -0.0001;
+            scene.add(sunLight);
+
+            const ambientLight = new THREE.AmbientLight(0x9db4ff, 0.5);
+            scene.add(ambientLight);
+
+            const skyLight = new THREE.DirectionalLight(0x7799ff, 0.4);
+            skyLight.position.set(0, 100000, 0);
+            scene.add(skyLight);
+
+            const horizonLight = new THREE.DirectionalLight(0xffcc99, 0.2);
+            horizonLight.position.set(100000, 20000, 100000);
+            scene.add(horizonLight);
+        }
+
+        // ATMOSPHERE AND VISUALS
+        function updateAtmosphere() {
+            const altitudeRatio = Math.min(flightState.altitude / 60000, 1);
+            
+            // Dynamic fog based on altitude
+            const fogNear = 8000 + altitudeRatio * 25000;
+            const fogFar = 150000 + altitudeRatio * 300000;
+            
+            const fogHSL = {
+                h: 0.6,
+                s: 0.3 + altitudeRatio * 0.2,
+                l: 0.55 + altitudeRatio * 0.25
+            };
+            
+            const fogColor = new THREE.Color().setHSL(fogHSL.h, fogHSL.s, fogHSL.l);
+            scene.fog = new THREE.Fog(fogColor, fogNear, fogFar);
+
+            if (skyDome) {
+                skyDome.material.uniforms.altitude.value = flightState.altitude;
+                skyDome.position.copy(camera.position);
+                skyDome.material.uniforms.time.value = Date.now() * 0.0001;
+                
+                // Dynamic sun position based on time
+                const sunCycle = (Date.now() * 0.00002) % (Math.PI * 2);
+                const sunDir = new THREE.Vector3(
+                    Math.sin(sunCycle) * 0.6,
+                    Math.cos(sunCycle) * 0.7 + 0.3,
+                    0.3
+                ).normalize();
+                skyDome.material.uniforms.sunDirection.value = sunDir;
+            }
+
+            // Cloud opacity based on altitude
+            cloudLayers.forEach(layer => {
+                layer.clouds.forEach(cloud => {
+                    const distToCamera = Math.abs(flightState.altitude - layer.altitude);
+                    const opacity = Math.max(0.1, 1 - distToCamera / 8000);
+                    
+                    cloud.traverse(child => {
+                        if (child.material) {
+                            child.material.transparent = true;
+                            child.material.opacity = opacity * 0.8;
+                        }
+                    });
+                });
+            });
+        }
+
+        // HUD DISPLAY
+        function updateHUD() {
+            document.getElementById('altitudeDisplay').textContent = Math.floor(flightState.altitude).toLocaleString();
+            document.getElementById('airspeedDisplay').textContent = Math.floor(flightState.airspeed);
+            document.getElementById('vsDisplay').textContent = Math.floor(flightState.verticalSpeed);
+            document.getElementById('headingDisplay').textContent = Math.floor(flightState.heading);
+            document.getElementById('throttleDisplay').textContent = Math.floor(flightState.throttle);
+
+            if (flightState.altitude > 45000) {
+                document.getElementById('altitudeWarning').classList.add('show');
+            } else {
+                document.getElementById('altitudeWarning').classList.remove('show');
+            }
+
+            const engineTemp = 72 + (flightState.throttle / 100) * 35;
+            document.getElementById('engineTemp').textContent = Math.floor(engineTemp);
+            document.getElementById('engineStatus').textContent = flightState.engineRunning ? 'OK' : 'OFF';
+            document.getElementById('fuelStatus').textContent = Math.max(0, Math.floor(100 - flightState.altitude / 500));
+        }
+
+        // MENU FUNCTIONS
+        function startFlight() {
+            document.getElementById('menu').classList.add('hidden');
+            renderer.domElement.focus();
+            gameActive = true;
+            lastTime = Date.now();
+            animate();
+        }
+
+        function togglePause() {
+            gamePaused = !gamePaused;
+            document.getElementById('pauseMenu').classList.toggle('active');
+            if (!gamePaused) {
+                lastTime = Date.now();
+            }
+        }
+
+        function showControls() {
+            document.getElementById('mainMenu').classList.remove('active');
+            document.getElementById('controlsMenu').classList.add('active');
+            document.querySelector('.menu-back').style.display = 'block';
+        }
+
+        function showSettings() {
+            document.getElementById('mainMenu').classList.remove('active');
+            document.getElementById('settingsMenu').classList.add('active');
+            document.querySelector('.menu-back').style.display = 'block';
+        }
+
+        function showMainMenu() {
+            document.getElementById('controlsMenu').classList.remove('active');
+            document.getElementById('settingsMenu').classList.remove('active');
+            document.getElementById('mainMenu').classList.add('active');
+            document.querySelector('.menu-back').style.display = 'none';
+        }
+
+        function returnToMainMenu() {
+            gameActive = false;
+            gamePaused = false;
+            document.getElementById('pauseMenu').classList.remove('active');
+            document.getElementById('menu').classList.remove('hidden');
+            
+            flightState.position.set(0, 5000, 0);
+            flightState.velocity.set(0, 0, 0);
+            flightState.throttle = 0;
+            flightState.pitch = 0;
+            flightState.roll = 0;
+            flightState.yaw = 0;
+            camPitch = 0;
+            camYaw = 0;
+        }
+
+        function updateGraphicsQuality() {
+            CONFIG.graphics = document.getElementById('graphicsQuality').value;
+        }
+
+        function updateCloudQuality() {
+            CONFIG.cloudQuality = parseFloat(document.getElementById('cloudQuality').value);
+            const qualityText = CONFIG.cloudQuality > 0.7 ? 'High' : CONFIG.cloudQuality > 0.4 ? 'Medium' : 'Low';
+            document.getElementById('cloudQualityValue').textContent = qualityText;
+        }
+
+        function updateShadowQuality() {
+            CONFIG.shadowQuality = parseFloat(document.getElementById('shadowQuality').value);
+            const qualityText = CONFIG.shadowQuality > 0.75 ? 'High' : CONFIG.shadowQuality > 0.25 ? 'Medium' : 'Low';
+            document.getElementById('shadowQualityValue').textContent = qualityText;
+        }
+
+        function updateMouseSensitivity() {
+            CONFIG.mouseSensitivity = parseFloat(document.getElementById('mouseSensitivity').value);
+            document.getElementById('mouseSensitivityValue').textContent = CONFIG.mouseSensitivity.toFixed(1) + 'x';
+        }
+
+        function updateMasterVolume() {
+            CONFIG.masterVolume = parseFloat(document.getElementById('masterVolume').value);
+            document.getElementById('masterVolumeValue').textContent = Math.floor(CONFIG.masterVolume * 100) + '%';
+        }
+
+        // CAMERA SYSTEM
+        function updateCamera() {
+            const vibrationX = (Math.random() - 0.5) * flightState.vibrationIntensity * 2;
+            const vibrationY = (Math.random() - 0.5) * flightState.vibrationIntensity * 2;
+            const vibrationZ = (Math.random() - 0.5) * flightState.vibrationIntensity * 0.5;
+
+            const turbulenceX = Math.sin(Date.now() * 0.002) * flightState.turbulenceIntensity * 0.3;
+            const turbulenceY = Math.cos(Date.now() * 0.0015) * flightState.turbulenceIntensity * 0.15;
+
+            const cameraPos = flightState.position.clone();
+            cameraPos.x += 2 + vibrationX + turbulenceX;
+            cameraPos.y += 1.5 + vibrationY + turbulenceY;
+            cameraPos.z -= 1 + vibrationZ;
+
+            camera.position.copy(cameraPos);
+
+            const targetQuaternion = new THREE.Quaternion();
+            const euler = new THREE.Euler(
+                flightState.pitch + camPitch,
+                flightState.yaw + camYaw,
+                flightState.roll,
+                'YXZ'
+            );
+            targetQuaternion.setFromEuler(euler);
+            camera.quaternion.slerp(targetQuaternion, 0.12);
+        }
+
+        // MAIN GAME LOOP
+        let gameActive = false;
+        let gamePaused = false;
+        let lastTime = Date.now();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (!gameActive || gamePaused) {
+                renderer.render(scene, camera);
+                return;
+            }
+
+            const now = Date.now();
+            const deltaTime = Math.min(now - lastTime, 50);
+            lastTime = now;
+
+            updateFlightPhysics(deltaTime * 0.001);
+            updateCameraLook();
+            updateCamera();
+            updateAtmosphere();
+            updateHUD();
+
+            // Update cloud wind animation
+            cloudLayers.forEach(layer => {
+                layer.clouds.forEach(cloud => {
+                    const windTime = Date.now() * 0.00005;
+                    cloud.position.x = cloud.userData.baseX + Math.sin(windTime + cloud.userData.driftOffset) * cloud.userData.windSpeed * 100;
+                    cloud.position.z = cloud.userData.baseZ + Math.cos(windTime + cloud.userData.driftOffset) * cloud.userData.windSpeed * 80;
+                });
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        // INITIALIZATION
+        function init() {
+            camera.position.set(0, 5000, 0);
+            camera.lookAt(0, 5000, 100);
+
+            createTerrain();
+            createClouds();
+            createSkyDome();
+            setupLighting();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            animate();
+        }
+
+        // START THE GAME
+        init();
+    </script>
+</body>
+</html>
