@@ -1,0 +1,138 @@
+<!-- ... existing code ... -->
+    let flashlight, gunGroup, muzzleFlash;
+    let walls = [];
+    let runes = [];
+    let monster, monsterHealth = CONFIG.monsterMaxHealth;
+    let raycaster = new THREE.Raycaster();
+    let recoil = { x: 0, y: 0 };
+    let sway = { x: 0, y: 0 }; // Added for smooth weapon sway
+
+    // Grunge Texture
+    function createGrungeTexture(colorHex) {
+<!-- ... existing code ... -->
+    function onMouseMove(event) {
+        if (document.pointerLockElement === document.body && !STATE.isDead) {
+            // FIX: Standard FPS sensitivity
+            const sensitivity = 0.002;
+            camera.rotation.y -= event.movementX * sensitivity;
+            camera.rotation.x -= event.movementY * sensitivity;
+            // Clamp looking up/down
+            camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+            
+            // Capture mouse movement for weapon sway
+            sway.x = event.movementX;
+            sway.y = event.movementY;
+        }
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+<!-- ... existing code ... -->
+    function updatePlayer(delta) {
+        const isSprinting = STATE.isSprinting;
+        const speed = isSprinting ? CONFIG.sprintSpeed : CONFIG.speed;
+        
+        // Recoil Recovery
+        camera.rotation.y += recoil.x;
+        camera.rotation.x += recoil.y;
+        recoil.x *= 0.8;
+        recoil.y *= 0.8;
+        camera.rotation.x -= recoil.y;
+        camera.rotation.y -= recoil.x;
+
+        // --- ULTRA REALISTIC MOVEMENT PHYSICS ---
+        
+        // 1. Friction (Damping) - Creates "weight"
+        // Lower value = more "slide" / momentum
+        const friction = 8.0; 
+        player.velocity.x -= player.velocity.x * friction * delta;
+        player.velocity.z -= player.velocity.z * friction * delta;
+
+        // 2. Acceleration - Smoother ramp up
+        const moveVec = new THREE.Vector3();
+        if (moveForward) moveVec.z -= 1;
+        if (moveBackward) moveVec.z += 1;
+        if (moveLeft) moveVec.x -= 1;
+        if (moveRight) moveVec.x += 1;
+        moveVec.normalize();
+
+        moveVec.applyAxisAngle(new THREE.Vector3(0, 1, 0), camera.rotation.y);
+
+        // Force multiplier (Mass simulation)
+        const accelForce = 250.0; 
+
+        if (moveForward || moveBackward || moveLeft || moveRight) {
+            player.velocity.x += moveVec.x * accelForce * delta * speed;
+            player.velocity.z += moveVec.z * accelForce * delta * speed;
+        }
+
+        // 3. Camera Banking (Head Tilt on Strafe)
+        // Tilts head slightly when moving left/right
+        const targetRoll = (Number(moveRight) - Number(moveLeft)) * -0.03;
+        camera.rotation.z = THREE.MathUtils.lerp(camera.rotation.z, targetRoll, delta * 8);
+
+        // 4. Weapon Sway (Lag behind camera)
+        // Lerp towards default position minus mouse delta
+        const targetGunX = 0.4 - (sway.x * 0.0005);
+        const targetGunY = -0.4 + (sway.y * 0.0005);
+        
+        if(gunGroup) {
+            gunGroup.position.x = THREE.MathUtils.lerp(gunGroup.position.x, targetGunX, delta * 5);
+            gunGroup.position.y = THREE.MathUtils.lerp(gunGroup.position.y, targetGunY, delta * 5);
+        }
+        
+        // Decay sway input
+        sway.x = THREE.MathUtils.lerp(sway.x, 0, delta * 10);
+        sway.y = THREE.MathUtils.lerp(sway.y, 0, delta * 10);
+
+        // Collision Integration
+        const nextX = camera.position.x + player.velocity.x * delta;
+        const nextZ = camera.position.z + player.velocity.z * delta;
+
+        // Walls Collision
+        let collideX = false;
+        let collideZ = false;
+        const playerRadius = 1.5;
+
+        for(let box of walls) {
+            if(nextX + playerRadius > box.min.x && nextX - playerRadius < box.max.x &&
+               camera.position.z + playerRadius > box.min.z && camera.position.z - playerRadius < box.max.z) {
+                collideX = true;
+                break;
+            }
+        }
+        for(let box of walls) {
+            if(camera.position.x + playerRadius > box.min.x && camera.position.x - playerRadius < box.max.x &&
+               nextZ + playerRadius > box.min.z && nextZ - playerRadius < box.max.z) {
+                collideZ = true;
+                break;
+            }
+        }
+
+        if(!collideX) camera.position.x = nextX;
+        else player.velocity.x = 0; // Stop momentum on wall hit
+        
+        if(!collideZ) camera.position.z = nextZ;
+        else player.velocity.z = 0; // Stop momentum on wall hit
+
+        // 5. Procedural Head Bob (Complex Curve)
+        if((moveForward || moveBackward || moveLeft || moveRight) && !STATE.isDead) {
+            const time = performance.now();
+            const freq = isSprinting ? 0.02 : 0.012;
+            const amp = isSprinting ? 0.25 : 0.15;
+            
+            // Figure-8 pattern for more natural walk cycle
+            camera.position.y = player.height + Math.sin(time * freq) * amp;
+            // Add slight side-to-side bob to gun only
+            if(gunGroup) {
+                gunGroup.position.x += Math.cos(time * freq * 0.5) * 0.002; 
+            }
+        } else {
+            // Breathing idle animation
+            const time = performance.now();
+            camera.position.y = THREE.MathUtils.lerp(camera.position.y, player.height + Math.sin(time * 0.003) * 0.05, delta * 2);
+        }
+    }
+
+    function updateMonster(delta) {
+<!-- ... existing code ... -->
