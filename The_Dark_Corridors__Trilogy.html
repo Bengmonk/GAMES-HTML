@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Dark Corridors: The Ascent</title>
+    <style>
+        /* --- GLOBAL STYLES --- */
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Courier New', Courier, monospace; user-select: none; }
+        
+        /* --- POST PROCESSING OVERLAYS --- */
+        #vignette {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, transparent 50%, rgba(0,0,0,0.8) 100%);
+            pointer-events: none; z-index: 3;
+        }
+        #grain {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+            pointer-events: none; z-index: 3; opacity: 0.4;
+        }
+
+        /* --- INTRO SEQUENCE --- */
+        #intro-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 100;
+            display: flex; align-items: center; justify-content: center;
+            flex-direction: column; color: #fff;
+        }
+        .intro-text { font-size: 24px; opacity: 0; transition: opacity 1s; margin-bottom: 20px; color: #0f0; text-shadow: 0 0 5px #0f0; }
+        #intro-start-btn { display: none; padding: 10px 30px; background: #000; border: 1px solid #0f0; color: #0f0; cursor: pointer; font-family: inherit; font-size: 18px; margin-top: 20px; }
+        #intro-start-btn:hover { background: #0f0; color: #000; }
+
+        /* --- OUTRO SEQUENCE --- */
+        #outro-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 200; display: none; align-items: center; justify-content: center;
+            flex-direction: column; color: #fff; padding: 50px; box-sizing: border-box; text-align: center;
+        }
+        .outro-text { font-size: 28px; opacity: 0; transition: opacity 2s; margin-bottom: 30px; color: #fff; max-width: 800px; line-height: 1.5; }
+        #outro-end-btn { display: none; padding: 15px 40px; background: #fff; border: none; color: #000; font-weight: bold; cursor: pointer; font-size: 20px; margin-top: 50px; }
+        #outro-end-btn:hover { background: #ccc; }
+
+        /* --- HUD --- */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: none; flex-direction: column; justify-content: space-between; padding: 20px; box-sizing: border-box; z-index: 5; }
+        .hud-text { color: white; text-shadow: 1px 1px 2px black; font-size: 18px; font-weight: bold; }
+        #center-dot { position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; background: rgba(255, 255, 255, 0.8); border-radius: 50%; transform: translate(-50%, -50%); z-index: 5; box-shadow: 0 0 4px white; display: none; }
+        #stamina-bar-container { width: 200px; height: 10px; background: #333; border: 1px solid #555; margin-bottom: 5px; }
+        #stamina-bar { width: 100%; height: 100%; background: #fff; transition: width 0.1s; }
+        #damage-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, transparent 50%, red 150%); opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 4; }
+        #flash-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; opacity: 0; pointer-events: none; transition: opacity 0.1s; z-index: 50; }
+
+        /* --- MENUS --- */
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: black; display: none; align-items: center; justify-content: center; flex-direction: column; z-index: 20; pointer-events: auto; transition: opacity 0.5s; }
+        h1 { color: #a00; font-size: 4rem; margin: 0; text-transform: uppercase; letter-spacing: 5px; animation: pulse 2s infinite; text-align: center; }
+        p { color: #ccc; font-size: 1.2rem; margin-top: 10px; text-align: center; }
+        button { margin-top: 30px; padding: 15px 40px; background: #111; color: white; border: 1px solid #666; font-family: inherit; font-size: 1.5rem; cursor: pointer; transition: 0.3s; }
+        button:hover { background: #500; border-color: #f00; }
+
+        /* --- CIVILIAN PHONE (Level 1 & 4) --- */
+        #phone-container { position: absolute; bottom: -600px; right: 50px; width: 280px; height: 550px; background: #111; border-radius: 30px; border: 4px solid #333; box-shadow: 0 0 20px rgba(0,0,0,0.8); transition: bottom 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 15; display: flex; flex-direction: column; align-items: center; padding: 20px; box-sizing: border-box; pointer-events: auto; }
+        #phone-screen { width: 100%; height: 85%; background: #050505; border-radius: 5px; overflow: hidden; position: relative; display: flex; flex-wrap: wrap; padding: 10px; gap: 10px; box-sizing: border-box; align-content: flex-start; }
+        .app-icon { width: 60px; height: 60px; background: linear-gradient(135deg, #0d47a1, #1976d2); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; flex-direction: column; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.5); transition: transform 0.1s; }
+        .app-icon:hover { transform: scale(1.05); }
+        #xray-app-btn { background: linear-gradient(135deg, #1b5e20, #4caf50); }
+        #home-button { width: 40px; height: 40px; background: #222; border-radius: 50%; margin-top: 15px; border: 1px solid #444; cursor: pointer; }
+        #map-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; display: none; flex-direction: column; }
+        #mini-map-canvas { width: 100%; height: 100%; background: #001100; }
+        #phone-msg { position: absolute; bottom: 20px; left: 0; width: 100%; text-align: center; color: red; font-size: 12px; font-weight: bold; opacity: 0; transition: opacity 0.5s; }
+        #phone-levels-menu { position: absolute; top:0; left:0; width:100%; height:100%; background:#111; display:none; flex-direction:column; gap:5px; padding:10px; box-sizing:border-box; }
+        .p-lvl-btn { padding: 10px; background:#222; border:1px solid #444; color:white; cursor:pointer; font-size:10px; }
+
+        /* --- TACTICAL COMPUTER (Level 2 & 3) --- */
+        #tablet-container { position: absolute; bottom: -700px; left: 50%; transform: translateX(-50%); width: 640px; height: 450px; background: #222; border: 5px solid #444; border-radius: 10px; box-shadow: 0 0 30px rgba(0,0,0,1); transition: bottom 0.5s; z-index: 15; pointer-events: auto; display: flex; flex-direction: column; padding: 10px; }
+        #tablet-screen { width: 100%; height: 100%; background: #001100; border: 2px inset #000; position: relative; overflow: hidden; display: flex; }
+        #tablet-sidebar { width: 120px; background: #002200; border-right: 2px solid #004400; display: flex; flex-direction: column; padding: 10px; gap: 10px; }
+        .tab-btn { width: 100%; padding: 10px; background: #003300; border: 1px solid #00ff00; color: #00ff00; font-family: monospace; font-size: 11px; cursor: pointer; text-align: center; transition: 0.2s; font-weight: bold; }
+        .tab-btn:hover { background: #005500; }
+        #tablet-content { flex-grow: 1; padding: 10px; position: relative; display: flex; justify-content: center; align-items: center; }
+        #tablet-map-canvas { width: 100%; height: 100%; background: #000; display: none; }
+        .tablet-app-view { width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; color: #0f0; font-family: monospace; text-align: center; }
+        .big-btn { padding: 20px 40px; background: #004400; color: #0f0; border: 2px solid #0f0; font-size: 20px; cursor: pointer; margin-top: 20px; }
+        .big-btn:hover { background: #006600; box-shadow: 0 0 10px #0f0; }
+        .big-btn:disabled { border-color: #555; color: #555; background: #111; cursor: not-allowed; }
+
+        /* --- INVESTIGATION UI --- */
+        #investigation-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #1a1a1a; z-index: 50; display: none; flex-direction: column; align-items: center; justify-content: center; background-image: radial-gradient(#222 10%, #000 90%); }
+        #interrogation-box { width: 800px; background: #000; border: 2px solid #444; padding: 40px; box-shadow: 0 0 50px rgba(0,0,0,0.9); position: relative; }
+        #speaker-name { color: #555; font-size: 14px; margin-bottom: 10px; letter-spacing: 2px; }
+        #dialogue-text { color: #ddd; font-size: 20px; line-height: 1.5; min-height: 80px; }
+        .choice-btn { display: block; width: 100%; padding: 15px; margin-top: 10px; background: #222; color: #aaa; border: 1px solid #333; text-align: left; cursor: pointer; transition: 0.2s; font-family: inherit; }
+        .choice-btn:hover { background: #333; color: white; border-left: 5px solid #a00; }
+        #level2-title { position: absolute; top: 20px; left: 20px; color: #333; font-size: 32px; font-weight: bold; }
+
+        @keyframes pulse { 0% { opacity: 0.8; } 50% { opacity: 1; text-shadow: 0 0 10px red; } 100% { opacity: 0.8; } }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <!-- GRAPHICS POST PROCESS -->
+    <div id="vignette"></div>
+    <div id="grain"></div>
+
+    <!-- INTRO -->
+    <div id="intro-layer">
+        <div id="intro-line-1" class="intro-text">SYSTEM BOOT...</div>
+        <div id="intro-line-2" class="intro-text">BIO-SIGNAL DETECTED</div>
+        <div id="intro-line-3" class="intro-text">LOCATION: SECTOR 4</div>
+        <button id="intro-start-btn">INITIATE</button>
+    </div>
+
+    <!-- OUTRO -->
+    <div id="outro-layer">
+        <div id="outro-line-1" class="outro-text">THE CORE SHATTERED.</div>
+        <div id="outro-line-2" class="outro-text">BUT IN THE FRAGMENTS... YOU SAW A REFLECTION.</div>
+        <div id="outro-line-3" class="outro-text">"PROJECT AETHER" WASN'T ABOUT FINDING ALIENS.</div>
+        <div id="outro-line-4" class="outro-text">IT WAS ABOUT MUTATING HUMANITY.</div>
+        <div id="outro-line-5" class="outro-text">THE MONSTERS... WERE US.</div>
+        <button id="outro-end-btn">END SIMULATION</button>
+    </div>
+
+    <!-- HUD -->
+    <div id="damage-overlay"></div>
+    <div id="flash-overlay"></div>
+    <div id="ui-layer">
+        <div class="hud-text" id="objective-text">ORBS: <span id="score">0</span> / 4</div>
+        <div>
+            <div id="stamina-bar-container"><div id="stamina-bar"></div></div>
+            <div class="hud-text" id="controls-hint" style="font-size: 12px; margin-top:5px;">[F] PHONE</div>
+        </div>
+    </div>
+    <div id="center-dot"></div>
+
+    <!-- MAIN MENU -->
+    <div id="overlay">
+        <h1 id="menu-title">The Dark Corridors</h1>
+        <p id="menu-subtitle">Collect 4 Orbs to escape.</p>
+        <button id="start-btn">ENTER</button>
+    </div>
+
+    <!-- CIVILIAN PHONE (LEVEL 1 & 4) -->
+    <div id="phone-container">
+        <div id="phone-screen">
+            <div class="app-icon" id="map-app-btn">
+                <div style="font-size: 24px;">🗺️</div>
+                <span>MAPS</span>
+            </div>
+            <div class="app-icon" id="xray-app-btn">
+                <div style="font-size: 24px;">👁️</div>
+                <span>X-RAY</span>
+                <span id="xray-cost-label">(COST: 1 ITEM)</span>
+            </div>
+            <div class="app-icon" id="levels-app-btn">
+                <div style="font-size: 24px;">🗂️</div>
+                <span>LEVELS</span>
+            </div>
+            <div id="phone-msg">INSUFFICIENT ITEMS</div>
+            
+            <div id="map-screen">
+                <div style="background:#333; color:white; font-size:10px; padding:5px;">FACILITY_GPS</div>
+                <canvas id="mini-map-canvas"></canvas>
+            </div>
+            <div id="phone-levels-menu">
+                <button class="p-lvl-btn" onclick="window.game.warp(1)">LVL 1: ESCAPE</button>
+                <button class="p-lvl-btn" onclick="window.game.warp(2)">LVL 2: RAID</button>
+                <button class="p-lvl-btn" onclick="window.game.warp(3)">LVL 3: EVIDENCE</button>
+                <button class="p-lvl-btn" onclick="window.game.warp(4)">LVL 4: THE ASCENT</button>
+                <button class="p-lvl-btn" style="margin-top:auto; color:red;" onclick="document.getElementById('phone-levels-menu').style.display='none'">BACK</button>
+            </div>
+        </div>
+        <div id="home-button"></div>
+    </div>
+
+    <!-- TACTICAL COMPUTER (LEVEL 2 & 3) -->
+    <div id="tablet-container">
+        <div style="background:#111; color:#0f0; padding:5px; font-family:monospace; border-bottom:1px solid #333;">TACTICAL_OS v.9.0</div>
+        <div id="tablet-screen">
+            <div id="tablet-sidebar">
+                <button class="tab-btn" id="tab-phone">📞 RADAR</button>
+                <button class="tab-btn" id="tab-xray">👁️ X-RAY</button>
+                <button class="tab-btn" id="tab-cam">📷 CAMERA</button>
+                <button class="tab-btn" id="tab-decoy">🔊 DECOY</button>
+                <button class="tab-btn" id="tab-levels">🗂️ LEVELS</button>
+            </div>
+            <div id="tablet-content">
+                <canvas id="tablet-map-canvas"></canvas>
+                <!-- Camera App -->
+                <div id="cam-view" class="tablet-app-view">
+                    <div style="border: 2px dashed #0f0; width: 200px; height: 150px; margin-bottom: 20px; display:flex; align-items:center; justify-content:center;">NO SIGNAL</div>
+                    <button class="big-btn" id="btn-capture">CAPTURE IMAGE</button>
+                    <p style="font-size:10px; margin-top:5px;">SUBJECT MUST BE VISIBLE</p>
+                </div>
+                <!-- Decoy App -->
+                <div id="decoy-view" class="tablet-app-view">
+                    <h3>SONIC DECOY</h3>
+                    <p>EMITS HIGH FREQUENCY PULSE</p>
+                    <button class="big-btn" id="btn-decoy">EMIT PULSE</button>
+                    <p id="decoy-status" style="margin-top:10px;">READY</p>
+                </div>
+                <!-- Levels Menu -->
+                <div id="levels-menu" class="tablet-app-view" style="gap:10px;">
+                    <button class="tab-btn" onclick="window.game.warp(1)">REPLAY LVL 1 (ESCAPE)</button>
+                    <button class="tab-btn" onclick="window.game.warp(2)">REPLAY LVL 2 (RAID)</button>
+                    <button class="tab-btn" onclick="window.game.warp(3)">REPLAY LVL 3 (EVIDENCE)</button>
+                    <button class="tab-btn" onclick="window.game.warp(4)">REPLAY LVL 4 (CLIMB)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- INVESTIGATION (DIALOGUE) -->
+    <div id="investigation-layer">
+        <div id="level2-title">CASE FILE: #99-CORRIDOR</div>
+        <div id="interrogation-box">
+            <div id="speaker-name">DETECTIVE MILLER</div>
+            <div id="dialogue-text">...</div>
+            <div id="choices-container"></div>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // --- GAME STATE ---
+        let currentLevel = 0; 
+        let CELL_SIZE = 5;
+        let MAP_SIZE = 40;
+
+        // --- DIALOGUE DATA ---
+        const dialogueTree = {
+            start: {
+                text: "Here, drink this water. You're shaking. I'm Detective Miller. We found you outside the facility. What happened?",
+                choices: [ { text: "There was a monster inside.", next: 'monster' } ]
+            },
+            monster: {
+                text: "A monster? Our drones picked up a massive heat signature, then lost it. Describe it.",
+                choices: [ { text: "It hunts by sound.", next: 'tactics' }, { text: "It's fast. It kills anything.", next: 'tactics' } ]
+            },
+            tactics: {
+                text: "We have a tactical team ready. But the layout is shifting. We need a guide to plant signal beacons for an airstrike.",
+                choices: [ { text: "I'm not going back.", next: 'refuse' }, { text: "I'll do it. I want it dead.", next: 'accept' } ]
+            },
+            refuse: {
+                text: "If we don't mark it, it escapes into the city. Millions die. You are the only one who can navigate that maze.",
+                choices: [ { text: "Fine. Give me the beacons.", next: 'accept' } ]
+            },
+            accept: {
+                text: "Good. Plant 3 Signal Beacons (Blue Pillars). You'll have a Tactical Computer (Press C). It has Maps, Decoys, and unlimited X-Ray.",
+                choices: [ { text: "[START LEVEL 2: THE RAID]", action: 'start_level_2' } ]
+            },
+            raid_success: {
+                text: "The airstrike failed. The target vanished from radar. The government thinks we are hallucinating. We need proof.",
+                choices: [ { text: "What kind of proof?", next: 'hive_brief' } ]
+            },
+            hive_brief: {
+                text: "A photograph. Go into the Hive, take a picture, and find the emergency exit.",
+                choices: [ { text: "That sounds like suicide.", next: 'hive_start' } ]
+            },
+            hive_start: {
+                text: "It is. But if we don't expose this, no one will send help. Take the camera. Get the shot. Run.",
+                choices: [ { text: "[ENTER LEVEL 3: THE EVIDENCE]", action: 'start_level_3' } ]
+            },
+            evidence_success: {
+                text: "We have the photo! My god, it's hideous. But the signal... it's not coming from the facility anymore. It's coming from the mountain peak.",
+                choices: [ { text: "It moved?", next: 'mountain_brief' } ]
+            },
+            mountain_brief: {
+                text: "The Source is up there. We are flying you to Mount Verglas. Climb the cliff face using your Hands [W]. Dodge falling rocks [A/D]. Destroy the Void Core.",
+                choices: [ { text: "[CLIMB THE MOUNTAIN]", action: 'start_level_4' } ]
+            }
+        };
+
+        // --- AUDIO ENGINE ---
+        class SoundEngine {
+            constructor() {
+                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                this.masterGain = this.ctx.createGain();
+                this.masterGain.connect(this.ctx.destination);
+                this.masterGain.gain.value = 0.5;
+                this.ambienceNodes = [];
+                this.noiseBuffer = this.createNoiseBuffer();
+            }
+            resume() { if (this.ctx.state === 'suspended') this.ctx.resume(); }
+            createNoiseBuffer() {
+                const bufferSize = this.ctx.sampleRate * 2; 
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                return buffer;
+            }
+            playIntroTyping() {
+                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                osc.connect(gain); gain.connect(this.masterGain);
+                osc.type = 'square'; osc.frequency.value = 800 + Math.random()*200;
+                gain.gain.value = 0.1; osc.start(); osc.stop(this.ctx.currentTime + 0.05);
+            }
+            playAmbience(level) {
+                this.stopAmbience();
+                if (level === 4) {
+                    const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                    osc.connect(gain); gain.connect(this.masterGain);
+                    osc.type = 'sawtooth'; osc.frequency.value = 100; // Wind
+                    const filter = this.ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 200;
+                    gain.disconnect(); gain.connect(filter); filter.connect(this.masterGain);
+                    gain.gain.value = 0.2; osc.start(); this.ambienceNodes.push(osc);
+                    return;
+                }
+                const osc1 = this.ctx.createOscillator(); const gain1 = this.ctx.createGain();
+                osc1.connect(gain1); gain1.connect(this.masterGain);
+                osc1.type = 'sawtooth'; 
+                osc1.frequency.value = level === 3 ? 70 : (level === 2 ? 60 : 50);
+                const filter = this.ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 180;
+                gain1.disconnect(); gain1.connect(filter); filter.connect(this.masterGain);
+                gain1.gain.value = 0.15; osc1.start();
+                this.ambienceNodes.push(osc1);
+            }
+            stopAmbience() { this.ambienceNodes.forEach(n => n.stop()); this.ambienceNodes = []; }
+            playFootstep(isSprinting) {
+                const src = this.ctx.createBufferSource(); src.buffer = this.noiseBuffer;
+                const filter = this.ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 300 + Math.random() * 100;
+                const gain = this.ctx.createGain(); gain.gain.setValueAtTime(isSprinting ? 0.4 : 0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                src.connect(filter); filter.connect(gain); gain.connect(this.masterGain);
+                src.start(0, Math.random() * 1.5); src.stop(this.ctx.currentTime + 0.2);
+            }
+            playPickup() { 
+                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                osc.connect(gain); gain.connect(this.masterGain);
+                osc.type = 'sine'; osc.frequency.setValueAtTime(600, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1200, this.ctx.currentTime + 0.5);
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime); gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.5);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.5);
+            }
+            playBeaconPlant() {
+                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                osc.connect(gain); gain.connect(this.masterGain);
+                osc.type = 'square'; osc.frequency.setValueAtTime(200, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(800, this.ctx.currentTime + 0.5);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime); gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.5);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.5);
+            }
+            playCameraShutter() {
+                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                osc.connect(gain); gain.connect(this.masterGain);
+                osc.type = 'triangle'; gain.gain.setValueAtTime(0.5, this.ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.1);
+            }
+            playDecoy() {
+                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                osc.connect(gain); gain.connect(this.masterGain);
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(1000, this.ctx.currentTime); osc.frequency.linearRampToValueAtTime(100, this.ctx.currentTime + 1.0);
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime); osc.start(); osc.stop(this.ctx.currentTime + 1.0);
+            }
+            playXRay() {
+                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                osc.connect(gain); gain.connect(this.masterGain);
+                osc.type = 'sine'; osc.frequency.setValueAtTime(400, this.ctx.currentTime); osc.frequency.linearRampToValueAtTime(1500, this.ctx.currentTime + 0.5);
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.5);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.5);
+            }
+            playJumpscare() {
+                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                osc.connect(gain); gain.connect(this.masterGain);
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(50, this.ctx.currentTime + 1.5);
+                const lfo = this.ctx.createOscillator(); lfo.frequency.value = 20; const lfoGain = this.ctx.createGain(); lfoGain.gain.value = 500;
+                lfo.connect(lfoGain); lfoGain.connect(osc.frequency); lfo.start();
+                gain.gain.setValueAtTime(0.8, this.ctx.currentTime); gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 1.5);
+                osc.start(); osc.stop(this.ctx.currentTime + 1.5);
+            }
+            playTypewriter() {
+                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                osc.connect(gain); gain.connect(this.masterGain);
+                osc.type = 'square'; osc.frequency.value = 800 + Math.random()*200; gain.gain.value = 0.05; osc.start(); osc.stop(this.ctx.currentTime + 0.03);
+            }
+            playRockHit() {
+                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                osc.connect(gain); gain.connect(this.masterGain);
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(80, this.ctx.currentTime); osc.frequency.exponentialRampToValueAtTime(10, this.ctx.currentTime + 0.5);
+                gain.gain.setValueAtTime(0.8, this.ctx.currentTime); gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.5);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.5);
+            }
+            playSquish() {
+                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                osc.connect(gain); gain.connect(this.masterGain);
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(300, this.ctx.currentTime); osc.frequency.exponentialRampToValueAtTime(50, this.ctx.currentTime+0.3);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime); gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime+0.3);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.3);
+            }
+        }
+
+        function createGrungeTexture(colorHex, type='wall') {
+            const size = 512; const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
+            const ctx = canvas.getContext('2d'); ctx.fillStyle = colorHex; ctx.fillRect(0,0,size,size);
+            
+            if(type === 'tile') {
+                ctx.strokeStyle = '#111'; ctx.lineWidth = 2;
+                const tiles = 8; const s = size/tiles;
+                for(let i=0; i<tiles; i++) for(let j=0; j<tiles; j++) ctx.strokeRect(i*s, j*s, s, s);
+            }
+
+            for(let i=0; i<8000; i++) { ctx.fillStyle = Math.random() > 0.5 ? '#000' : '#fff'; ctx.globalAlpha = 0.05; ctx.fillRect(Math.random()*size, Math.random()*size, Math.random()*3, Math.random()*3); }
+            const texture = new THREE.CanvasTexture(canvas); texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; return texture;
+        }
+
+        function createSnowTexture() {
+            const size = 512; const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
+            const ctx = canvas.getContext('2d'); ctx.fillStyle = "#eeeeee"; ctx.fillRect(0,0,size,size);
+            for(let i=0; i<2000; i++) { ctx.fillStyle = "#bbbbbb"; ctx.globalAlpha = 0.3; ctx.fillRect(Math.random()*size, Math.random()*size, 3, 3); }
+            const texture = new THREE.CanvasTexture(canvas); texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; return texture;
+        }
+
+        // --- GLOBAL VARIABLES ---
+        let camera, scene, renderer; let playerObj; 
+        let moveState = { fwd: false, bwd: false, left: false, right: false, sprint: false };
+        let walls = []; let collectables = []; let fallingRocks = []; let score = 0; let isGameActive = false; let stamina = 100;
+        let soundEngine; let enemy; let enemySpeed = 4.0; let flashlight; let prevTime = performance.now();
+        let mapData = []; 
+        let isPhoneActive = false; let isComputerActive = false; let isMapAppOpen = false; let isXRayActive = false;
+        
+        let photoTaken = false; let exitDoor = null; let decoyCooldown = 0;
+        let lastRockTime = 0;
+        let rockHits = 0; 
+        let handsContainer, leftHand, rightHand; 
+
+        const phoneContainer = document.getElementById('phone-container');
+        const tabletContainer = document.getElementById('tablet-container');
+        const phoneMsg = document.getElementById('phone-msg');
+        const xrayCostLabel = document.getElementById('xray-cost-label');
+        const overlay = document.getElementById('overlay');
+        const startBtn = document.getElementById('start-btn');
+        const uiScore = document.getElementById('score');
+        const objectiveText = document.getElementById('objective-text');
+        const uiStamina = document.getElementById('stamina-bar');
+        const damageOverlay = document.getElementById('damage-overlay');
+        const flashOverlay = document.getElementById('flash-overlay');
+        const introLayer = document.getElementById('intro-layer');
+        const introStartBtn = document.getElementById('intro-start-btn');
+        const controlsHint = document.getElementById('controls-hint');
+        const decoyStatus = document.getElementById('decoy-status');
+        const btnDecoy = document.getElementById('btn-decoy');
+        
+        const investigationLayer = document.getElementById('investigation-layer');
+        const dialogueText = document.getElementById('dialogue-text');
+        const choicesContainer = document.getElementById('choices-container');
+        const menuTitle = document.getElementById('menu-title');
+        const menuSubtitle = document.getElementById('menu-subtitle');
+        const outroLayer = document.getElementById('outro-layer');
+        const outroEndBtn = document.getElementById('outro-end-btn');
+
+        const miniMapCanvas = document.getElementById('mini-map-canvas');
+        const mapCtx = miniMapCanvas.getContext('2d');
+        const tabletMapCanvas = document.getElementById('tablet-map-canvas');
+        const tabletCtx = tabletMapCanvas.getContext('2d');
+
+        window.game = { warp: function(lvl) { toggleComputer(); togglePhone(); initGame(lvl); } };
+
+        // --- INTRO SEQUENCE ---
+        window.onload = function() { soundEngine = new SoundEngine(); runIntro(); };
+        function runIntro() {
+            setTimeout(() => { document.getElementById('intro-line-1').style.opacity = 1; soundEngine.playIntroTyping(); }, 1000);
+            setTimeout(() => { document.getElementById('intro-line-2').style.opacity = 1; soundEngine.playIntroTyping(); }, 2500);
+            setTimeout(() => { document.getElementById('intro-line-3').style.opacity = 1; soundEngine.playIntroTyping(); }, 4000);
+            setTimeout(() => { introStartBtn.style.display = 'block'; introStartBtn.onclick = () => { introLayer.style.display = 'none'; showMainMenu(); }; }, 5000);
+        }
+        function showMainMenu() { overlay.style.display = 'flex'; soundEngine.resume(); }
+
+        function playOutroSequence() {
+            isGameActive = false; document.exitPointerLock();
+            if(renderer) renderer.domElement.style.display = 'none';
+            document.getElementById('ui-layer').style.display = 'none';
+            soundEngine.stopAmbience();
+            outroLayer.style.display = 'flex';
+            setTimeout(() => { document.getElementById('outro-line-1').style.opacity = 1; soundEngine.playIntroTyping(); }, 1000);
+            setTimeout(() => { document.getElementById('outro-line-2').style.opacity = 1; soundEngine.playIntroTyping(); }, 3000);
+            setTimeout(() => { document.getElementById('outro-line-3').style.opacity = 1; soundEngine.playIntroTyping(); }, 5000);
+            setTimeout(() => { document.getElementById('outro-line-4').style.opacity = 1; soundEngine.playIntroTyping(); }, 7000);
+            setTimeout(() => { document.getElementById('outro-line-5').style.opacity = 1; soundEngine.playIntroTyping(); }, 9000);
+            setTimeout(() => { outroEndBtn.style.display = 'block'; outroEndBtn.onclick = () => location.reload(); }, 11000);
+        }
+
+        // --- GLOBAL BUTTON LISTENER ---
+        startBtn.addEventListener('click', () => {
+            const txt = startBtn.innerText;
+            if(txt.includes("CONTINUE TO INVESTIGATION")) { startInvestigation('start'); } 
+            else if (txt.includes("CONTINUE TO THE END")) { startInvestigation('raid_success'); } 
+            else if (txt.includes("GO TO MOUNTAIN")) { startInvestigation('evidence_success'); }
+            else if (txt.includes("EXECUTE")) { initGame(2); } 
+            else if (txt.includes("DESCEND")) { initGame(3); } 
+            else if (txt.includes("CLIMB")) { initGame(4); }
+            else if (txt.includes("RESTART LEVEL") || txt.includes("TRY AGAIN")) { initGame(currentLevel); } 
+            else if (txt.includes("PLAY")) { location.reload(); } 
+            else { initGame(1); }
+        });
+
+        // --- INVESTIGATION ---
+        function startInvestigation(startNode) {
+            isGameActive = false; document.exitPointerLock();
+            if(renderer) renderer.domElement.style.display = 'none';
+            document.getElementById('ui-layer').style.display = 'none'; document.getElementById('center-dot').style.display = 'none';
+            overlay.style.display = 'none'; phoneContainer.style.bottom = "-600px"; soundEngine.stopAmbience();
+            investigationLayer.style.display = 'flex'; renderDialogue(startNode);
+        }
+        function renderDialogue(nodeId) {
+            const node = dialogueTree[nodeId]; dialogueText.innerHTML = ""; choicesContainer.innerHTML = "";
+            let i = 0;
+            function typeWriter() {
+                if (i < node.text.length) { dialogueText.innerHTML += node.text.charAt(i); if(i % 3 === 0) soundEngine.playTypewriter(); i++; setTimeout(typeWriter, 15); } 
+                else { node.choices.forEach(choice => {
+                        const btn = document.createElement('button'); btn.className = 'choice-btn'; btn.innerText = "> " + choice.text;
+                        if(choice.action === 'start_level_2') { btn.onclick = () => { investigationLayer.style.display = 'none'; showBriefingLevel2(); }; } 
+                        else if(choice.action === 'start_level_3') { btn.onclick = () => { investigationLayer.style.display = 'none'; showBriefingLevel3(); }; } 
+                        else if(choice.action === 'start_level_4') { btn.onclick = () => { investigationLayer.style.display = 'none'; showBriefingLevel4(); }; }
+                        else { btn.onclick = () => renderDialogue(choice.next); } choicesContainer.appendChild(btn);
+                    });
+                }
+            }
+            typeWriter();
+        }
+        function showBriefingLevel2() { if(renderer) renderer.domElement.style.display = 'block'; overlay.style.display = 'flex'; menuTitle.innerText = "PHASE 2: THE RAID"; menuTitle.style.color = "#00f"; menuSubtitle.innerText = "MISSION: LOCATE 3 BLUE SIGNALS. WALK INTO THEM."; startBtn.innerText = "EXECUTE MISSION"; }
+        function showBriefingLevel3() { if(renderer) renderer.domElement.style.display = 'block'; overlay.style.display = 'flex'; menuTitle.innerText = "PHASE 3: THE EVIDENCE"; menuTitle.style.color = "#f00"; menuSubtitle.innerText = "MISSION: TAKE A PHOTO. FIND EXIT."; startBtn.innerText = "DESCEND"; }
+        function showBriefingLevel4() { if(renderer) renderer.domElement.style.display = 'block'; overlay.style.display = 'flex'; menuTitle.innerText = "PHASE 4: THE SOURCE"; menuTitle.style.color = "#fff"; menuSubtitle.innerText = "MISSION: CLIMB VERTICALLY. DODGE ROCKS."; startBtn.innerText = "CLIMB"; }
+
+        // --- GAME INIT ---
+        function initGame(level) {
+            currentLevel = level; overlay.style.display = 'none'; document.getElementById('ui-layer').style.display = 'flex'; document.getElementById('center-dot').style.display = 'block';
+            soundEngine.resume(); soundEngine.playAmbience(currentLevel);
+            isPhoneActive = false; phoneContainer.style.bottom = "-600px"; isComputerActive = false; tabletContainer.style.bottom = "-700px";
+            if(currentLevel > 1 && currentLevel < 4) controlsHint.innerText = "[C] TACTICAL COMPUTER"; 
+            else if(currentLevel === 4) controlsHint.innerText = "[F] PHONE | [W] CLIMB UP | [A/D] STRAFE";
+            else controlsHint.innerText = "[F] PHONE";
+            document.body.requestPointerLock(); document.addEventListener('click', () => { if(isGameActive && !isPhoneActive && !isComputerActive) document.body.requestPointerLock(); });
+            if (!scene) { setupThreeJS(); generateLevel(); spawnEnemy(); animate(); } else { resetLevel(); }
+            isGameActive = true;
+        }
+
+        function resetLevel() {
+            score = 0; stamina = 100; damageOverlay.style.opacity = 0; deactivateXRay(); photoTaken = false; exitDoor = null;
+            fallingRocks.forEach(r => scene.remove(r.mesh)); fallingRocks = [];
+            rockHits = 0; 
+            
+            if(currentLevel === 4) {
+                // Vertical Climb Mode
+                playerObj.position.set(0, 5, 0); 
+                playerObj.rotation.set(0,0,0);
+                enemy.position.set(0, -500, 0); // Hide enemy
+                enemySpeed = 0;
+                if(handsContainer) handsContainer.visible = true;
+                MAP_SIZE = 50; objectiveText.innerText = "REACH THE PEAK"; objectiveText.style.color = "#fff"; 
+                scene.fog = new THREE.FogExp2(0xcccccc, 0.02); scene.background = new THREE.Color(0xcccccc);
+            } else {
+                if(handsContainer) handsContainer.visible = false;
+                playerObj.position.set(CELL_SIZE * 2, 1.6, CELL_SIZE * 2);
+                enemy.position.set((MAP_SIZE - 4) * CELL_SIZE, 2, (MAP_SIZE - 4) * CELL_SIZE);
+                if(currentLevel === 3) { enemySpeed = 4.5; MAP_SIZE = 30; objectiveText.innerText = "PHOTO REQUIRED"; objectiveText.style.color = "#f00"; scene.fog = new THREE.FogExp2(0x020202, 0.06); scene.background = new THREE.Color(0x020202); }
+                else if(currentLevel === 2) { enemySpeed = 5.0; MAP_SIZE = 40; objectiveText.innerText = "BEACONS: 0 / 3"; objectiveText.style.color = "#aaf"; scene.fog = new THREE.FogExp2(0x020202, 0.06); scene.background = new THREE.Color(0x020202); }
+                else { enemySpeed = 4.0; MAP_SIZE = 40; objectiveText.innerHTML = 'ORBS: <span id="score">0</span> / 4'; objectiveText.style.color = "#fff"; scene.fog = new THREE.FogExp2(0x020202, 0.06); scene.background = new THREE.Color(0x020202); }
+            }
+            generateLevel(); if(currentLevel !== 4) spawnEnemy(); isGameActive = true;
+        }
+
+        function setupThreeJS() {
+            scene = new THREE.Scene(); 
+            // Better Lighting
+            renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setSize(window.innerWidth, window.innerHeight); 
+            renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            document.body.appendChild(renderer.domElement);
+
+            const ambient = new THREE.AmbientLight(0x404040, 0.2); scene.add(ambient);
+            
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 120);
+            playerObj = new THREE.Object3D(); playerObj.add(camera); scene.add(playerObj); 
+            
+            // Climbing Hands
+            handsContainer = new THREE.Object3D();
+            camera.add(handsContainer);
+            const handGeo = new THREE.BoxGeometry(0.2, 0.4, 0.2);
+            const handMat = new THREE.MeshBasicMaterial({ color: 0x885544 }); 
+            leftHand = new THREE.Mesh(handGeo, handMat); leftHand.position.set(-0.5, -0.6, -1);
+            rightHand = new THREE.Mesh(handGeo, handMat); rightHand.position.set(0.5, -0.6, -1);
+            handsContainer.add(leftHand); handsContainer.add(rightHand);
+            handsContainer.visible = false;
+
+            flashlight = new THREE.SpotLight(0xffffff, 100); 
+            flashlight.distance = 45; flashlight.angle = Math.PI / 5; flashlight.penumbra = 0.5; flashlight.castShadow = true; 
+            flashlight.position.set(0.3, -0.2, 0); flashlight.target.position.set(0, 0, -5); 
+            camera.add(flashlight); camera.add(flashlight.target);
+            
+            // Bounce Light
+            const bounce = new THREE.PointLight(0xffffff, 1, 10);
+            camera.add(bounce);
+
+            document.addEventListener('keydown', (e) => onKey(e, true)); document.addEventListener('keyup', (e) => onKey(e, false)); document.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+        }
+
+        function generateLevel() {
+            walls = []; fallingRocks = [];
+            for(let i=scene.children.length-1; i>=0; i--) { const obj = scene.children[i]; if(obj !== playerObj && obj.type !== 'AmbientLight') scene.remove(obj); }
+            if(currentLevel === 4) { generateMountain(); return; }
+
+            const mapW = MAP_SIZE * CELL_SIZE;
+            let wColor = '#555555'; if(currentLevel === 2) wColor = '#334455'; if(currentLevel === 3) wColor = '#441111';
+            const wallTexture = createGrungeTexture(wColor); const wallMat = new THREE.MeshStandardMaterial({ map: wallTexture, roughness: 0.8 });
+            const floorTexture = createGrungeTexture('#222222', 'tile'); floorTexture.repeat.set(MAP_SIZE, MAP_SIZE); const floorMat = new THREE.MeshStandardMaterial({ map: floorTexture, roughness: 0.5, metalness: 0.2 });
+            const bigGeo = new THREE.PlaneGeometry(mapW, mapW); const floor = new THREE.Mesh(bigGeo, floorMat); floor.rotation.x = -Math.PI / 2; floor.position.set(mapW/2 - (CELL_SIZE/2), 0, mapW/2 - (CELL_SIZE/2)); floor.receiveShadow = true; scene.add(floor);
+            const ceilMat = new THREE.MeshBasicMaterial({ color: 0x050505 }); const ceil = new THREE.Mesh(bigGeo, ceilMat); ceil.rotation.x = Math.PI / 2; ceil.position.set(mapW/2 - (CELL_SIZE/2), 7, mapW/2 - (CELL_SIZE/2)); scene.add(ceil);
+            const wallGeo = new THREE.BoxGeometry(CELL_SIZE, 10, CELL_SIZE);
+            mapData = [];
+            for(let x=0; x<MAP_SIZE; x++){
+                let row = [];
+                for(let z=0; z<MAP_SIZE; z++){
+                    let isWall = false;
+                    if(x === 0 || z === 0 || x === MAP_SIZE-1 || z === MAP_SIZE-1) isWall = true; else if (Math.random() > 0.8) isWall = true;
+                    if (x < 5 && z < 5) isWall = false; if (x > MAP_SIZE - 6 && z > MAP_SIZE - 6) isWall = false;
+                    row.push(isWall ? 1 : 0);
+                    if(isWall) { const wall = new THREE.Mesh(wallGeo, wallMat); wall.position.set(x*CELL_SIZE, 5, z*CELL_SIZE); wall.castShadow = true; wall.receiveShadow = true; scene.add(wall); const box = new THREE.Box3().setFromObject(wall); box.expandByScalar(-0.1); walls.push(box); }
+                }
+                mapData.push(row);
+            }
+            if(currentLevel !== 3) spawnCollectables();
+        }
+
+        function generateMountain() {
+            const wallGeo = new THREE.PlaneGeometry(200, 500);
+            const wallMat = new THREE.MeshStandardMaterial({ map: createSnowTexture(), roughness: 1.0 });
+            const wall = new THREE.Mesh(wallGeo, wallMat);
+            wall.position.set(0, 200, -2); // Set Z to -2 so player at Z=0 feels attached
+            wall.receiveShadow = true;
+            scene.add(wall);
+
+            const floorGeo = new THREE.PlaneGeometry(100, 100);
+            const floor = new THREE.Mesh(floorGeo, wallMat);
+            floor.rotation.x = -Math.PI/2;
+            floor.position.set(0, 0, 0);
+            scene.add(floor);
+
+            const coreGeo = new THREE.DodecahedronGeometry(5);
+            const coreMat = new THREE.MeshBasicMaterial({ color: 0x8800ff, wireframe: true });
+            const core = new THREE.Mesh(coreGeo, coreMat);
+            core.position.set(0, 380, -5);
+            scene.add(core);
+            const light = new THREE.PointLight(0x8800ff, 10, 50); core.add(light);
+            collectables = [{ mesh: core, active: true, isSource: true }];
+        }
+
+        function spawnCollectables() {
+            collectables = [];
+            const isLvl2 = currentLevel === 2;
+            const colColor = isLvl2 ? 0x00ffff : 0xff0000;
+            const geo = isLvl2 ? new THREE.BoxGeometry(1, 10, 1) : new THREE.SphereGeometry(0.4, 16, 16);
+            const mat = isLvl2 ? new THREE.MeshBasicMaterial({ color: colColor, wireframe: true }) : new THREE.MeshBasicMaterial({ color: colColor });
+            const total = 10;
+            for(let i=0; i<total; i++) {
+                const mesh = new THREE.Mesh(geo, mat);
+                const x = (Math.floor(Math.random() * (MAP_SIZE-6)) + 3) * CELL_SIZE; const z = (Math.floor(Math.random() * (MAP_SIZE-6)) + 3) * CELL_SIZE;
+                mesh.position.set(x, 1.5, z); const light = new THREE.PointLight(colColor, 3, 10); mesh.add(light); scene.add(mesh); collectables.push({ mesh: mesh, active: true });
+                if(currentLevel === 2) { 
+                    const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 64; const ctx = canvas.getContext('2d'); ctx.fillStyle = "cyan"; ctx.font = "bold 30px Arial"; ctx.fillText("TARGET", 10, 40);
+                    const tex = new THREE.CanvasTexture(canvas); const spMat = new THREE.SpriteMaterial({ map: tex }); const sprite = new THREE.Sprite(spMat); sprite.position.set(0, 3, 0); sprite.scale.set(4, 2, 1); mesh.add(sprite);
+                }
+            }
+        }
+
+        function spawnExit() {
+            const exitGeo = new THREE.BoxGeometry(2, 8, 2); const exitMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 }); const mesh = new THREE.Mesh(exitGeo, exitMat);
+            const x = (MAP_SIZE-3) * CELL_SIZE; const z = (MAP_SIZE-3) * CELL_SIZE; mesh.position.set(x, 4, z); scene.add(mesh);
+            const light = new THREE.PointLight(0x00ff00, 5, 20); mesh.add(light);
+            exitDoor = { mesh: mesh, active: true }; objectiveText.innerText = "EXIT: RUN!"; objectiveText.style.color = "#0f0";
+        }
+
+        function spawnEnemy() {
+            if(enemy) scene.remove(enemy);
+            const geo = new THREE.CapsuleGeometry(1, 3, 4, 8); const mat = new THREE.MeshStandardMaterial({ color: 0x111111 }); enemy = new THREE.Mesh(geo, mat);
+            const eyeGeo = new THREE.SphereGeometry(0.2); const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffaaaa });
+            const eye1 = new THREE.Mesh(eyeGeo, eyeMat); const eye2 = new THREE.Mesh(eyeGeo, eyeMat); eye1.position.set(-0.3, 1.2, 0.8); eye2.position.set(0.3, 1.2, 0.8); enemy.add(eye1); enemy.add(eye2);
+            enemy.position.set((MAP_SIZE-4)*CELL_SIZE, 2, (MAP_SIZE-4)*CELL_SIZE); scene.add(enemy);
+        }
+
+        function spawnRock() {
+            const geo = new THREE.DodecahedronGeometry(3);
+            const mat = new THREE.MeshStandardMaterial({ color: 0x444444 });
+            const rock = new THREE.Mesh(geo, mat);
+            // Spawn around player X location so they have to dodge
+            // FIXED: Z=0 to ensure they hit the player
+            const spawnX = playerObj.position.x + (Math.random() * 30 - 15);
+            rock.position.set(spawnX, playerObj.position.y + 60, 0); 
+            scene.add(rock);
+            fallingRocks.push({ mesh: rock, velY: -0.2 }); // Slower falling speed (0.2)
+        }
+
+        function onKey(e, isDown) {
+            const code = e.code;
+            if(isDown) {
+                if (code === 'KeyF' && (currentLevel === 1 || currentLevel === 4)) { togglePhone(); return; }
+                if (code === 'KeyC' && (currentLevel === 2 || currentLevel === 3)) { toggleComputer(); return; }
+            }
+            if(isPhoneActive || isComputerActive) return; 
+            if(code === 'KeyW') moveState.fwd = isDown; if(code === 'KeyS') moveState.bwd = isDown; if(code === 'KeyA') moveState.left = isDown; if(code === 'KeyD') moveState.right = isDown; if(code === 'ShiftLeft') moveState.sprint = isDown;
+        }
+
+        function onMouseMove(e) {
+            if(!isGameActive || isPhoneActive || isComputerActive) return; 
+            playerObj.rotation.y -= e.movementX * 0.002; 
+            camera.rotation.x -= e.movementY * 0.002; 
+            camera.rotation.x = Math.max(-1.5, Math.min(1.5, camera.rotation.x));
+        }
+
+        function togglePhone() {
+            if(!isGameActive || isComputerActive) return;
+            isPhoneActive = !isPhoneActive;
+            if (isPhoneActive) { phoneContainer.style.bottom = "-50px"; document.exitPointerLock(); } 
+            else { phoneContainer.style.bottom = "-600px"; document.body.requestPointerLock(); setTimeout(() => { document.getElementById('map-screen').style.display = 'none'; document.getElementById('phone-levels-menu').style.display='none'; phoneMsg.style.opacity = 0; }, 500); }
+        }
+
+        function toggleComputer() {
+            if(!isGameActive || isPhoneActive) return;
+            isComputerActive = !isComputerActive;
+            if (isComputerActive) { tabletContainer.style.bottom = "50px"; document.exitPointerLock(); document.getElementById('levels-menu').style.display = 'none'; document.getElementById('tablet-map-canvas').style.display = 'block'; document.querySelectorAll('.tablet-app-view').forEach(el => el.style.display = 'none'); } 
+            else { tabletContainer.style.bottom = "-700px"; document.body.requestPointerLock(); }
+        }
+
+        document.getElementById('tab-phone').onclick = () => { document.querySelectorAll('.tablet-app-view').forEach(el => el.style.display = 'none'); document.getElementById('tablet-map-canvas').style.display = 'block'; };
+        document.getElementById('tab-xray').onclick = () => { if(isXRayActive) return; activateXRay(); };
+        document.getElementById('tab-cam').onclick = () => { document.getElementById('tablet-map-canvas').style.display = 'none'; document.querySelectorAll('.tablet-app-view').forEach(el => el.style.display = 'none'); document.getElementById('cam-view').style.display = 'flex'; };
+        document.getElementById('tab-decoy').onclick = () => { document.getElementById('tablet-map-canvas').style.display = 'none'; document.querySelectorAll('.tablet-app-view').forEach(el => el.style.display = 'none'); document.getElementById('decoy-view').style.display = 'flex'; };
+        document.getElementById('tab-levels').onclick = () => { document.getElementById('tablet-map-canvas').style.display = 'none'; document.querySelectorAll('.tablet-app-view').forEach(el => el.style.display = 'none'); document.getElementById('levels-menu').style.display = 'flex'; };
+        document.getElementById('map-app-btn').onclick = () => { document.getElementById('map-screen').style.display = 'flex'; };
+        document.getElementById('levels-app-btn').onclick = () => { document.getElementById('phone-levels-menu').style.display = 'flex'; };
+        document.getElementById('xray-app-btn').onclick = () => { if(currentLevel === 1 && score < 1) { phoneMsg.innerText = "INSUFFICIENT ORBS"; phoneMsg.style.opacity = 1; setTimeout(() => phoneMsg.style.opacity = 0, 2000); return; } if(isXRayActive) return; activateXRay(); };
+        document.getElementById('home-button').onclick = () => { if(document.getElementById('map-screen').style.display === 'flex') document.getElementById('map-screen').style.display = 'none'; else if(document.getElementById('phone-levels-menu').style.display === 'flex') document.getElementById('phone-levels-menu').style.display = 'none'; else togglePhone(); };
+
+        document.getElementById('btn-capture').onclick = () => {
+            if(currentLevel !== 3) return;
+            const dirToEnemy = new THREE.Vector3().subVectors(enemy.position, playerObj.position).normalize();
+            const playerDir = new THREE.Vector3(); camera.getWorldDirection(playerDir);
+            const angle = playerDir.angleTo(dirToEnemy);
+            flashOverlay.style.opacity = 1; setTimeout(() => flashOverlay.style.opacity = 0, 100); soundEngine.playCameraShutter();
+            const dist = playerObj.position.distanceTo(enemy.position);
+            if(angle < 0.5 && dist < 20 && !photoTaken) { 
+                photoTaken = true; 
+                enemySpeed = 8.0; 
+                spawnExit(); 
+                objectiveText.innerText = "PHOTO SAVED. RUN!";
+                objectiveText.style.color = "#0f0";
+                toggleComputer(); 
+            }
+        };
+        document.getElementById('btn-decoy').onclick = () => {
+            if(decoyCooldown > 0) return;
+            soundEngine.playDecoy(); document.getElementById('decoy-status').innerText = "RECHARGING..."; document.getElementById('btn-decoy').disabled = true;
+            const oldSpeed = enemySpeed; enemySpeed = 0; setTimeout(() => { enemySpeed = oldSpeed; }, 3000);
+            decoyCooldown = 10;
+            const interval = setInterval(() => { decoyCooldown--; if(decoyCooldown <= 0) { clearInterval(interval); document.getElementById('decoy-status').innerText = "READY"; document.getElementById('btn-decoy').disabled = false; } }, 1000);
+        };
+
+        function activateXRay() { if(currentLevel === 1) { score--; uiScore.innerText = score; } isXRayActive = true; soundEngine.playXRay(); phoneMsg.innerText = "X-RAY ENABLED (15s)"; phoneMsg.style.color = "#0f0"; phoneMsg.style.opacity = 1; enemy.material.depthTest = false; enemy.material.depthWrite = false; enemy.renderOrder = 999; enemy.material.emissive = new THREE.Color(0xff0000); enemy.material.emissiveIntensity = 2; enemy.children.forEach(c => { c.material.depthTest = false; c.renderOrder = 999; }); collectables.forEach(c => { c.mesh.material.depthTest = false; c.mesh.renderOrder = 999; }); setTimeout(deactivateXRay, 15000); }
+        function deactivateXRay() { isXRayActive = false; phoneMsg.innerText = "X-RAY OFFLINE"; phoneMsg.style.color = "red"; if(enemy) { enemy.material.depthTest = true; enemy.material.depthWrite = true; enemy.renderOrder = 0; enemy.material.emissive = new THREE.Color(0x000000); enemy.children.forEach(c => { c.material.depthTest = true; c.renderOrder = 0; }); } collectables.forEach(c => { c.mesh.material.depthTest = true; c.mesh.renderOrder = 0; }); setTimeout(() => phoneMsg.style.opacity = 0, 2000); }
+
+        function renderMap(ctx, width, height) {
+            if(currentLevel === 4) return; 
+            ctx.fillStyle = '#001100'; ctx.fillRect(0,0,width,height);
+            const scaleX = width / MAP_SIZE; const scaleY = height / MAP_SIZE;
+            ctx.fillStyle = '#005500'; for(let x=0; x<MAP_SIZE; x++) { for(let z=0; z<MAP_SIZE; z++) { if(mapData[x] && mapData[x][z] === 1) { ctx.fillRect(x*scaleX, z*scaleY, scaleX+1, scaleY+1); } } }
+            let itemColor = '#FFFF00'; if(currentLevel === 2) itemColor = '#00FFFF'; if(currentLevel === 3) itemColor = '#00FF00';
+            ctx.fillStyle = itemColor; collectables.forEach(c => { if(c.active) { const gx = c.mesh.position.x / CELL_SIZE; const gz = c.mesh.position.z / CELL_SIZE; ctx.beginPath(); ctx.arc(gx*scaleX, gz*scaleY, 3, 0, Math.PI*2); ctx.fill(); } });
+            if(exitDoor) { const ex = exitDoor.mesh.position.x / CELL_SIZE; const ez = exitDoor.mesh.position.z / CELL_SIZE; ctx.fillStyle = '#00FF00'; ctx.fillRect(ex*scaleX - 2, ez*scaleY - 2, 6, 6); }
+            if(enemy) { const ex = enemy.position.x / CELL_SIZE; const ez = enemy.position.z / CELL_SIZE; ctx.fillStyle = '#FF0000'; ctx.beginPath(); ctx.arc(ex*scaleX, ez*scaleY, 4, 0, Math.PI*2); ctx.fill(); }
+            const px = playerObj.position.x / CELL_SIZE; const pz = playerObj.position.z / CELL_SIZE;
+            ctx.fillStyle = 'rgba(0, 100, 255, 0.3)'; ctx.beginPath(); ctx.moveTo(px*scaleX, pz*scaleY);
+            const rot = -playerObj.rotation.y - Math.PI / 2; ctx.arc(px*scaleX, pz*scaleY, 15, rot - 0.5, rot + 0.5); ctx.fill();
+            ctx.fillStyle = '#0088FF'; ctx.beginPath(); ctx.arc(px*scaleX, pz*scaleY, 3, 0, Math.PI*2); ctx.fill(); 
+        }
+
+        function animate() {
+            requestAnimationFrame(animate); if(!isGameActive) return;
+            const time = performance.now(); const delta = (time - prevTime) / 1000; prevTime = time;
+            if(!isPhoneActive && !isComputerActive) handlePlayerMovement(delta, time); else camera.position.y = THREE.MathUtils.lerp(camera.position.y, 0, 0.1);
+            if(currentLevel !== 4) handleEnemy(delta); else handleFallingRocks(delta, time);
+            if(isPhoneActive) renderMap(mapCtx, miniMapCanvas.width, miniMapCanvas.height);
+            if(isComputerActive) renderMap(tabletCtx, tabletMapCanvas.width, tabletMapCanvas.height);
+            renderer.render(scene, camera);
+        }
+
+        function handleFallingRocks(delta, time) {
+            // Spawn less often (2.5s interval)
+            if (time - lastRockTime > 2500) {
+                spawnRock();
+                lastRockTime = time;
+            }
+            
+            for(let i=fallingRocks.length-1; i>=0; i--) {
+                const rock = fallingRocks[i];
+                rock.mesh.position.y += rock.velY;
+                rock.mesh.rotation.x += 0.05;
+                
+                // Bigger hitbox distance
+                if(rock.mesh.position.distanceTo(playerObj.position) < 4.0) {
+                    soundEngine.playRockHit();
+                    
+                    // NEW FALLING LOGIC
+                    rockHits++;
+                    scene.remove(rock.mesh); fallingRocks.splice(i, 1);
+                    flashOverlay.style.opacity = 1; setTimeout(() => flashOverlay.style.opacity = 0, 200);
+
+                    if(rockHits >= 2) {
+                        endGame(false); 
+                    } else {
+                        const dropDist = 50;
+                        playerObj.position.y = Math.max(5, playerObj.position.y - dropDist);
+                        objectiveText.innerText = "GRIP SLIPPED! (1 LIFE LEFT)";
+                        objectiveText.style.color = "orange";
+                        setTimeout(() => { if(isGameActive && currentLevel===4) { objectiveText.innerText = "REACH THE PEAK"; objectiveText.style.color = "#fff"; } }, 2000);
+                    }
+                    continue; 
+                }
+                if(rock.mesh.position.y < -10) { scene.remove(rock.mesh); fallingRocks.splice(i, 1); }
+            }
+        }
+
+        function handlePlayerMovement(delta, time) {
+            const isMoving = moveState.fwd || moveState.bwd || moveState.left || moveState.right;
+            const isSprinting = moveState.sprint && stamina > 0;
+            
+            if(currentLevel === 4) {
+                // Vertical Climb Physics
+                const speed = 15.0; // Fast climb
+                if(moveState.fwd) playerObj.position.y += speed * delta;
+                if(moveState.bwd) playerObj.position.y -= speed * delta;
+                // Strafing
+                const strafeSpeed = 10.0;
+                const strafe = new THREE.Vector3();
+                if(moveState.left) strafe.x -= 1; if(moveState.right) strafe.x += 1;
+                strafe.applyQuaternion(playerObj.quaternion);
+                playerObj.position.add(strafe.multiplyScalar(strafeSpeed * delta));
+                
+                // Stick to wall (Z axis)
+                playerObj.position.z = 0; 
+
+                // Hand Animation
+                if(moveState.fwd || moveState.bwd) {
+                    leftHand.position.y = -0.6 + Math.sin(time * 0.01) * 0.2;
+                    rightHand.position.y = -0.6 + Math.sin(time * 0.01 + Math.PI) * 0.2;
+                } else {
+                    leftHand.position.y = -0.6; rightHand.position.y = -0.6;
+                }
+
+                if(playerObj.position.y > 370) endGame(true);
+                return;
+            }
+
+            // Normal Physics
+            if(isSprinting && isMoving) stamina -= 20 * delta; else stamina = Math.min(100, stamina + 10 * delta);
+            uiStamina.style.width = stamina + '%'; uiStamina.style.backgroundColor = stamina < 20 ? 'red' : 'white';
+            const speed = isSprinting ? 12.0 : 7.0;
+            const dir = new THREE.Vector3(); if(moveState.fwd) dir.z -= 1; if(moveState.bwd) dir.z += 1; if(moveState.left) dir.x -= 1; if(moveState.right) dir.x += 1;
+            dir.normalize(); dir.applyQuaternion(playerObj.quaternion);
+            const velocity = dir.multiplyScalar(speed * delta);
+            const nextPos = playerObj.position.clone().add(velocity);
+            const playerBox = new THREE.Box3(); playerBox.setFromCenterAndSize(nextPos, new THREE.Vector3(1, 4, 1));
+            let collided = false; for(let wall of walls) { if(playerBox.intersectsBox(wall)) { collided = true; break; } }
+            if(!collided) { playerObj.position.add(velocity); } else {
+                const tryX = playerObj.position.clone().add(new THREE.Vector3(velocity.x, 0, 0)); playerBox.setFromCenterAndSize(tryX, new THREE.Vector3(1, 4, 1));
+                let colX = false; for(let wall of walls) if(playerBox.intersectsBox(wall)) colX = true; if(!colX) playerObj.position.x += velocity.x;
+                const tryZ = playerObj.position.clone().add(new THREE.Vector3(0, 0, velocity.z)); playerBox.setFromCenterAndSize(tryZ, new THREE.Vector3(1, 4, 1));
+                let colZ = false; for(let wall of walls) if(playerBox.intersectsBox(wall)) colZ = true; if(!colZ) playerObj.position.z += velocity.z;
+            }
+            if(isMoving) {
+                const bobFreq = isSprinting ? 18 : 12; const bobAmt = Math.sin(time/1000 * bobFreq); camera.position.y = bobAmt * 0.1;
+                if(bobAmt < -0.8 && !playerObj.stepTriggered) { soundEngine.playFootstep(isSprinting); playerObj.stepTriggered = true; }
+                if(bobAmt > 0) playerObj.stepTriggered = false;
+            } else { camera.position.y = THREE.MathUtils.lerp(camera.position.y, 0, 0.1); }
+            
+            collectables.forEach(c => {
+                if(c.active && playerObj.position.distanceTo(c.mesh.position) < 3) {
+                    c.active = false; scene.remove(c.mesh); 
+                    score++; 
+                    if(currentLevel === 3) { soundEngine.playSquish(); objectiveText.innerText = `NODES: ${score} / 5`; if(score >= 5) endGame(true); }
+                    else if(currentLevel === 2) { soundEngine.playBeaconPlant(); objectiveText.innerText = `BEACONS: ${score} / 3`; if(score >= 3) endGame(true); }
+                    else { soundEngine.playPickup(); if(document.getElementById('score')) document.getElementById('score').innerText = score; if(score >= 4) endGame(true); }
+                    enemySpeed += 0.5;
+                }
+            });
+            if (exitDoor && exitDoor.active) { if(playerObj.position.distanceTo(exitDoor.mesh.position) < 4) { endGame(true); } }
+        }
+
+        function handleEnemy(delta) {
+            if(!enemy) return;
+            const dist = playerObj.position.distanceTo(enemy.position);
+            enemy.lookAt(playerObj.position.x, 2, playerObj.position.z);
+            const dir = new THREE.Vector3().subVectors(playerObj.position, enemy.position).normalize();
+            const velocity = dir.multiplyScalar(enemySpeed * delta);
+            const nextPos = enemy.position.clone().add(velocity);
+            const enemyBox = new THREE.Box3().setFromCenterAndSize(nextPos, new THREE.Vector3(1, 2, 1));
+            let collided = false; for(let wall of walls) { if(enemyBox.intersectsBox(wall)) { collided = true; break; } }
+            if(!collided) { enemy.position.add(velocity); } else {
+                const tryX = enemy.position.clone().add(new THREE.Vector3(velocity.x, 0, 0)); enemyBox.setFromCenterAndSize(tryX, new THREE.Vector3(1, 2, 1));
+                let colX = false; for(let wall of walls) { if(enemyBox.intersectsBox(wall)) { colX = true; break; } } if(!colX) enemy.position.x += velocity.x;
+                const tryZ = enemy.position.clone().add(new THREE.Vector3(0, 0, velocity.z)); enemyBox.setFromCenterAndSize(tryZ, new THREE.Vector3(1, 2, 1));
+                let colZ = false; for(let wall of walls) { if(enemyBox.intersectsBox(wall)) { colZ = true; break; } } if(!colZ) enemy.position.z += velocity.z;
+            }
+            enemy.position.y = 2 + Math.sin(performance.now() / 400) * 0.2;
+            if(dist < 1.5) endGame(false);
+            else if (dist < 15.0) { const intensity = 1 - (dist / 15.0); damageOverlay.style.opacity = intensity * 0.8; flashlight.intensity = Math.random() > 0.7 ? 0 : 500; } 
+            else { damageOverlay.style.opacity = 0; flashlight.intensity = 500; }
+        }
+
+        function endGame(victory) {
+            isGameActive = false; document.exitPointerLock(); overlay.style.display = 'flex';
+            const h1 = overlay.querySelector('h1'); const p = overlay.querySelector('p'); const btn = overlay.querySelector('button');
+            if(victory) {
+                if(currentLevel === 4) { playOutroSequence(); return; }
+                else if(currentLevel === 3) { h1.innerText = "GOT THE SHOT"; h1.style.color = "#f00"; p.innerText = "You escaped with the evidence."; btn.innerText = "GO TO MOUNTAIN"; }
+                else if(currentLevel === 2) { h1.innerText = "TARGET MARKED"; h1.style.color = "#4af"; p.innerText = "Airstrike inbound."; btn.innerText = "CONTINUE TO THE END"; }
+                else { h1.innerText = "ESCAPED"; h1.style.color = "#4f4"; p.innerText = "The police have arrived."; btn.innerText = "CONTINUE TO INVESTIGATION"; }
+            } else {
+                h1.innerText = "K.I.A."; h1.style.color = "#a00"; p.innerText = "Signal lost."; soundEngine.playJumpscare(); btn.innerText = "RESTART LEVEL";
+            }
+        }
+    </script>
+</body>
+</html>
